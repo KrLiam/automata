@@ -1,6 +1,6 @@
 
 
-class UnexpectedToken extends Error {
+export class UnexpectedToken extends Error {
     token: Token;
 
     constructor(token: Token) {
@@ -10,14 +10,14 @@ class UnexpectedToken extends Error {
     }
 }
 
-class UnexpectedEOF extends Error {
+export class UnexpectedEOF extends Error {
     constructor() {
         super("Unexpected EOF");
     }
 }
 
 
-class SourceLocation {
+export class SourceLocation {
     pos: number
 
     constructor(pos: number) {
@@ -32,7 +32,7 @@ class SourceLocation {
 }
 
 
-class Token {
+export class Token {
     type: string
     value: string;
     location: SourceLocation;
@@ -56,12 +56,12 @@ class Token {
 }
 
 
-class TokenStream {
+export class TokenStream {
     source: string;
 
-    pos: number = -1;
+    pos: number = 0;
 
-    syntax_rules: Map<string, string> = new Map();
+    syntax_rules: {[key: string]: string};
     regex: RegExp = new RegExp("");
     
     tokens: Token[] = []
@@ -72,10 +72,11 @@ class TokenStream {
 
     constructor(source: string) {
         this.source = source;
-        this.syntax_rules = new Map([
-            ["newline", "\\r?\\n"],
-            ["whitespace", "[ \\t]+"]
-        ]);
+        this.syntax_rules = {
+            newline: "\\r?\\n",
+            whitespace: "[ \\t]+",
+            invalid: ".+"
+        };
         this.generator = this.generateTokens();
         this.ignoredTokens = ["whitespace", "newline","eof"]
         this.bakeRegex();
@@ -83,15 +84,15 @@ class TokenStream {
 
     bakeRegex() {
         let patterns = [];
-        for (let [key, value] of this.syntax_rules) {
-            patterns.push(`(?<${key}${value}>)`);
+        for (let [key, value] of Object.entries(this.syntax_rules)) {
+            patterns.push(`(?<${key}>${value})`);
         }
         this.regex = new RegExp(patterns.join("|"));
     }
 
     syntax(patterns: {[key: string]: string}, callback: () => void) {
         const prev_syntax = this.syntax_rules;
-        this.syntax_rules = {...this.syntax_rules, ...patterns};
+        this.syntax_rules = {...patterns, ...this.syntax_rules};
         this.bakeRegex();
         try {
             callback();
@@ -120,7 +121,7 @@ class TokenStream {
 
     *generateTokens() {
         while (this.pos < this.source.length) {
-            const match = this.source.match(this.regex);
+            const match = this.source.slice(this.pos).match(this.regex);
             if (match && match.groups) {
                 const [[type, value], ..._] = Object.entries(match.groups).filter((v) => v[1]);
 
