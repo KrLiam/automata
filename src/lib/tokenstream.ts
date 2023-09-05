@@ -1,6 +1,55 @@
+export class SourceLocation {
+    pos: number
+    
+    constructor(pos: number) {
+        this.pos = pos;
 
+        Object.freeze(this);
+    }
 
-export class UnexpectedToken extends Error {
+    skipOver(value: string) {
+        return new SourceLocation(
+            this.pos + value.length
+        );
+    }
+
+    static initial: SourceLocation = new SourceLocation(0);
+}
+
+interface SupportsLocation {
+    location: SourceLocation;
+    endLocation: SourceLocation;
+}
+
+function set_location<T extends SupportsLocation>(
+    obj: T,
+    location: SourceLocation | SupportsLocation,
+    endLocation: SourceLocation | SupportsLocation | null = null
+): T {
+    if (location instanceof SourceLocation) {
+        obj.location = location;
+    }
+    else {
+        obj.location = location.location;
+        obj.endLocation = location.endLocation;
+    }
+
+    if (endLocation instanceof SourceLocation) {
+        obj.endLocation = endLocation;
+    }
+    else if (endLocation) {
+        obj.endLocation = endLocation.endLocation;
+    }
+
+    return obj;
+}
+
+export class InvalidSyntax extends Error {
+    location: SourceLocation = SourceLocation.initial;
+    endLocation: SourceLocation = SourceLocation.initial;
+}
+
+export class UnexpectedToken extends InvalidSyntax {
     token: Token;
 
     constructor(token: Token) {
@@ -10,27 +59,11 @@ export class UnexpectedToken extends Error {
     }
 }
 
-export class UnexpectedEOF extends Error {
+export class UnexpectedEOF extends InvalidSyntax {
     constructor() {
         super("Unexpected EOF");
     }
 }
-
-
-export class SourceLocation {
-    pos: number
-
-    constructor(pos: number) {
-        this.pos = pos;
-    }
-
-    skipOver(value: string) {
-        return new SourceLocation(
-            this.pos + value.length
-        );
-    }
-}
-
 
 export class Token {
     type: string
