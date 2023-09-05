@@ -89,6 +89,14 @@ export class Token {
 }
 
 
+
+type CommitCheckpoint = {
+    (arg: number): void,
+    index: number,
+    rollback: boolean
+}
+
+
 export class TokenStream {
     source: string;
 
@@ -123,16 +131,25 @@ export class TokenStream {
         this.regex = new RegExp(patterns.join("|"));
     }
 
+    crop() {
+        for (let i = this.index + 1; i < this.tokens.length; i++) {
+            this.tokens.pop();
+        }
+    }
+
     syntax(patterns: {[key: string]: string}, callback: () => void) {
         const prev_syntax = this.syntax_rules;
+        const prev_regex = this.regex;
         this.syntax_rules = {...patterns, ...this.syntax_rules};
         this.bakeRegex();
+        this.crop();
         try {
             callback();
         }
         finally {
             this.syntax_rules = prev_syntax;
-            this.bakeRegex();
+            this.regex = prev_regex;
+            this.crop();
         }
     }
 
@@ -287,5 +304,25 @@ export class TokenStream {
             return result.find(v => v !== null) as Token;
         }
         return null;
+    }
+
+    checkpoint(callback: (commit: CommitCheckpoint) => any) {
+        const commit: CommitCheckpoint = () => { commit.rollback = false; };
+        commit.rollback = true;
+        commit.index = this.index;
+
+        try {
+            callback(commit);
+        }
+        catch (err) {
+            if (!(err instanceof InvalidSyntax) || !commit.rollback) {
+                throw err;
+            }
+        }
+        finally {
+            if (commit.rollback) {
+                this.index = commit.index;
+            }
+        }
     }
 }
