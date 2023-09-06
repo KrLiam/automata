@@ -74,8 +74,8 @@ export class Token {
     constructor(
         type: string,
         value: string,
-        location: SourceLocation, 
-        endLocation: SourceLocation
+        location: SourceLocation = SourceLocation.initial, 
+        endLocation: SourceLocation = SourceLocation.initial
     ) {
         this.type = type;
         this.value = value;
@@ -86,6 +86,8 @@ export class Token {
     match(pattern: string): boolean {
         return pattern == this.type;
     }
+
+    static empty: Token = new Token("empty", "");
 }
 
 
@@ -97,31 +99,54 @@ type CommitCheckpoint = {
 }
 
 
+export class StreamContext {
+    constructor(
+        public source: string,
+        public generator: Generator<Token, undefined, RegExp>,
+        public done: boolean = false,
+        public pos: number = 0,
+        public index: number = -1,
+        public tokens: Token[] = []
+    ) {}
+}
+
 export class TokenStream {
-    source: string;
-
-    pos: number = 0;
-
     syntax_rules: {[key: string]: string};
     regex: RegExp = new RegExp("");
+    ignoredTokens: string[] = [];
+    data: object
     
-    tokens: Token[] = []
-    index: number = -1
-    generator: Generator<Token, unknown>;
-    ignoredTokens: string[] = []
-    done: boolean = false
+    context: StreamContext;
 
-    constructor(source: string) {
-        this.source = source;
+    constructor(source: string | StreamContext) {
+        if (!(source instanceof StreamContext)) {
+            const generator = this.generateTokens();
+            // force generator to start at a dummy yield statement
+            // so the first .next() call can send a value.
+            generator.next(new RegExp(""));
+            source = new StreamContext(source, generator);
+        }
+        this.context = source;
+
+        this.data = {};
+        this.ignoredTokens = ["whitespace", "newline","eof"]
         this.syntax_rules = {
             newline: "\\r?\\n",
             whitespace: "[ \\t]+",
             invalid: ".+"
         };
-        this.generator = this.generateTokens();
-        this.ignoredTokens = ["whitespace", "newline","eof"]
         this.bakeRegex();
     }
+
+    get source() { return this.context.source; }
+    get generator() { return this.context.generator; }
+    get done() { return this.context.done; }
+    get pos() { return this.context.pos; }
+    get index() { return this.context.index; }
+    get tokens() { return this.context.tokens; }
+    set done(value) { this.context.done = value; }
+    set pos(value) { this.context.pos = value; }
+    set index(value) { this.context.index = value; }
 
     bakeRegex() {
         let patterns = [];
@@ -137,20 +162,67 @@ export class TokenStream {
         }
     }
 
-    syntax(patterns: {[key: string]: string}, callback: () => void) {
+    provide(data: object): TokenStream;
+    provide<T>(data: object, callback: () => T): T;
+    provide<T>(
+        data: object, callback: (() => T) | null = null
+    ): T | TokenStream {
+        const newData = {...data, ...this.data};
+
+        if (!callback) {
+            const stream = this.copy();
+            stream.data = newData
+            return stream;
+        }
+
+        const prevData = this.data;
+        this.data = newData;
+
+        let result;
+
+        try {
+            result = callback();
+        }
+        finally {
+            this.data = prevData;
+        }
+
+        return result;
+    }
+
+    syntax(patterns: {[key: string]: string}): TokenStream;
+    syntax<T>(patterns: {[key: string]: string}, callback: () => T): T;
+    syntax<T>(
+        patterns: {[key: string]: string}, callback: (() => T) | null = null
+    ): T | TokenStream {
+        const rules = {...patterns, ...this.syntax_rules};
+
+        if (!callback) {
+            const stream = this.copy();
+            stream.syntax_rules = rules
+            stream.bakeRegex();
+            return stream;
+        }
+
         const prev_syntax = this.syntax_rules;
         const prev_regex = this.regex;
-        this.syntax_rules = {...patterns, ...this.syntax_rules};
+        this.syntax_rules = rules;
+
         this.bakeRegex();
         this.crop();
+
+        let result;
+
         try {
-            callback();
+            result = callback();
         }
         finally {
             this.syntax_rules = prev_syntax;
             this.regex = prev_regex;
             this.crop();
         }
+
+        return result;
     }
 
     emitToken(type: string, value: string = "") {
@@ -169,14 +241,17 @@ export class TokenStream {
         return this.tokens[this.index];
     }
 
-    *generateTokens() {
+    *generateTokens(): Generator<Token, undefined, RegExp> {
+        // dummy yield statement to allow for an initial send value
+        let regex = yield Token.empty;
+    
         while (this.pos < this.source.length) {
-            const match = this.source.slice(this.pos).match(this.regex);
+            const match = this.source.slice(this.pos).match(regex);
             if (match && match.groups) {
                 const [[type, value], ..._] = Object.entries(match.groups).filter((v) => v[1]);
 
                 this.emitToken(type, value);
-                yield this.current;
+                regex = yield this.current;
             }
         }
 
@@ -191,7 +266,7 @@ export class TokenStream {
             this.index += 1;
         }
         else {
-            const result = this.generator.next();
+            const result = this.generator.next(this.regex);
             this.done = result.done ? true : false;
             if (result.done) return result;
         }
@@ -324,5 +399,16 @@ export class TokenStream {
                 this.index = commit.index;
             }
         }
+    }
+
+    copy() {
+        const stream = new TokenStream(this.context);
+
+        stream.syntax_rules = {...this.syntax_rules};
+        stream.ignoredTokens = [...this.ignoredTokens];
+        stream.data = {...this.data};
+        stream.bakeRegex();
+
+        return stream;
     }
 }
