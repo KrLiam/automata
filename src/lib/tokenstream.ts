@@ -21,7 +21,7 @@ interface SupportsLocation {
     endLocation: SourceLocation;
 }
 
-function set_location<T extends SupportsLocation>(
+export function set_location<T extends SupportsLocation>(
     obj: T,
     location: SourceLocation | SupportsLocation,
     endLocation: SourceLocation | SupportsLocation | null = null
@@ -51,11 +51,14 @@ export class InvalidSyntax extends Error {
 
 export class UnexpectedToken extends InvalidSyntax {
     token: Token;
+    expectedPatterns: string[];
 
-    constructor(token: Token) {
-        super(`Unexpected token of type '${token.type}' and value '${token.value}'`);
-
+    constructor(token: Token, expectedPatterns: string[]) {
+        let patterns = expectedPatterns.join(", ");
+        super(`Expected ${patterns} but got value '${token.value}'`);
+        
         this.token = token;
+        this.expectedPatterns = expectedPatterns;
     }
 }
 
@@ -93,7 +96,7 @@ export class Token {
 
 
 type CommitCheckpoint = {
-    (arg: number): void,
+    (): void,
     index: number,
     rollback: boolean
 }
@@ -114,7 +117,7 @@ export class TokenStream {
     syntax_rules: {[key: string]: string};
     regex: RegExp = new RegExp("");
     ignoredTokens: string[] = [];
-    data: object
+    data: any
     
     context: StreamContext;
 
@@ -159,6 +162,14 @@ export class TokenStream {
     crop() {
         for (let i = this.index + 1; i < this.tokens.length; i++) {
             this.tokens.pop();
+        }
+
+        if (this.tokens.length) {
+            const token = this.tokens[this.tokens.length - 1];
+            this.pos = token.endLocation.pos;
+        }
+        else {
+            this.pos = 0;
         }
     }
 
@@ -220,6 +231,67 @@ export class TokenStream {
             this.syntax_rules = prev_syntax;
             this.regex = prev_regex;
             this.crop();
+        }
+
+        return result;
+    }
+
+    intercept(tokens: string[]): TokenStream;
+    intercept<T>(tokens: string[], callback: () => T): T;
+    intercept<T>(
+        tokens: string[], callback: (() => T) | null = null
+    ): T | TokenStream {
+        const newIgnoredtokens = this.ignoredTokens.filter((v) => !tokens.includes(v));
+
+        if (!callback) {
+            const stream = this.copy();
+            stream.ignoredTokens = newIgnoredtokens
+            return stream;
+        }
+
+        const prevIgnoredtokens = this.ignoredTokens;
+        this.ignoredTokens = newIgnoredtokens;
+
+        let result;
+
+        try {
+            result = callback();
+        }
+        finally {
+            this.ignoredTokens = prevIgnoredtokens;
+        }
+
+        return result;
+    }
+
+    ignore(tokens: string[]): TokenStream;
+    ignore<T>(tokens: string[], callback: () => T): T;
+    ignore<T>(
+        tokens: string[], callback: (() => T) | null = null
+    ): T | TokenStream {
+        const newIgnoredtokens = [...this.ignoredTokens];
+        for (let token of tokens) {
+            if (!newIgnoredtokens.includes(token)) {
+                newIgnoredtokens.push(token);
+            }
+        }
+
+        if (!callback) {
+            const stream = this.copy();
+            stream.ignoredTokens = newIgnoredtokens
+            return stream;
+        }
+
+        const prevIgnoredtokens = this.ignoredTokens;
+        this.ignoredTokens = newIgnoredtokens;
+
+        let result;
+
+        try {
+            result = callback();
+        }
+        finally {
+            this.ignoredTokens = prevIgnoredtokens;
         }
 
         return result;
@@ -350,7 +422,7 @@ export class TokenStream {
             return result;
         }
         const token = this.peek();
-        throw token ? new UnexpectedToken(token) : new UnexpectedEOF();
+        throw token ? new UnexpectedToken(token, patterns) : new UnexpectedEOF();
     }
     
     expect(pattern: string | null = null): Token {
@@ -381,24 +453,30 @@ export class TokenStream {
         return null;
     }
 
-    checkpoint(callback: (commit: CommitCheckpoint) => any) {
+    checkpoint<T>(
+        callback: (commit: CommitCheckpoint) => T
+    ): {result: T | undefined, err: InvalidSyntax | undefined, rollback: boolean} {
         const commit: CommitCheckpoint = () => { commit.rollback = false; };
         commit.rollback = true;
         commit.index = this.index;
 
+        let result, err;
         try {
-            callback(commit);
+            result = callback(commit);
         }
-        catch (err) {
-            if (!(err instanceof InvalidSyntax) || !commit.rollback) {
-                throw err;
+        catch (e) {
+            if (!(e instanceof InvalidSyntax) || !commit.rollback) {
+                throw e;
             }
+            err = e;
         }
         finally {
             if (commit.rollback) {
                 this.index = commit.index;
             }
         }
+
+        return {result, err, rollback: commit.rollback};
     }
 
     copy() {
