@@ -95,17 +95,65 @@ export class AstFinalState extends AstNode {
     };
 }
 
+export type AstTransitionArgs = AstNodeArgs & {
+    start: AstIdentifier;
+    end: AstIdentifier;
+    condition: AstNode;
+}
+export class AstTransition extends AstNode {
+    start: AstIdentifier;
+    end: AstIdentifier;
+    condition: AstNode;
+
+    constructor({start, end, condition, ...args}: AstTransitionArgs) {
+        super(args);
+        this.start = start;
+        this.end = end;
+        this.condition = condition;
+    };
+}
+
+
+export type AstCharArgs = AstNodeArgs & {
+    value: string;
+}
+export class AstChar extends AstNode {
+    value: string;
+
+    constructor({value, ...args}: AstCharArgs) {
+        super(args);
+        this.value = value;
+    };
+}
+
 
 export type AstRootArgs = AstNodeArgs & {
     children: AstNode[]
 }
 export class AstRoot extends AstNode {
     children: AstNode[];
-
+    
     constructor({children, ...args}: AstRootArgs) {
         super(args);
         this.children = children;
     };
 }
 
+
 export class AstModuleRoot extends AstRoot {}
+
+
+export type AstAutomataDefinitionArgs = AstNodeArgs & {
+    name: AstIdentifier;
+    body: AstRoot;
+}
+export class AstAutomataDefinition extends AstNode {
+    name: AstIdentifier;
+    body: AstRoot;
+
+    constructor({name, body, ...args}: AstAutomataDefinitionArgs) {
+        super(args);
+        this.name = name;
+        this.body = body;
+    };
+}

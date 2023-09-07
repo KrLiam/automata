@@ -68,6 +68,8 @@ export class UnexpectedEOF extends InvalidSyntax {
     }
 }
 
+export type TokenPattern = [string, string];
+
 export class Token {
     type: string
     value: string;
@@ -212,6 +214,7 @@ export class TokenStream {
             const stream = this.copy();
             stream.syntax_rules = rules
             stream.bakeRegex();
+            stream.crop();
             return stream;
         }
 
@@ -430,7 +433,7 @@ export class TokenStream {
             return result;
         }
         const token = this.peek();
-        throw token ? new UnexpectedToken(token) : new UnexpectedEOF();
+        throw token ? new UnexpectedToken(token, [pattern ? pattern : "any"]) : new UnexpectedEOF();
     }
 
     *expect_any(...patterns: string[]): Generator<Token> {
