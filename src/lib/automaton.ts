@@ -101,6 +101,78 @@ export function get_states(transitions: (Transition|TransitionTuple)[] | Transit
     return states;
 }
 
+/**
+ * Splits the name of a state containing a numeric version in the
+ * format `<name>.<version>`.
+ * 
+ * ```
+ * split_state("q1.3")
+ * // ["q1", 3]
+ * split_state("no")
+ * // ["no", 0]
+ * split_state("dotted.name.4")
+ * // ["dotted.name", 4]
+ * split_state(".weird")
+ * // [".weird", 0]
+ * ```
+ * 
+ * @param state 
+ * @returns A tuple containing the state name and version.
+ */
+export function split_state(state: State): [string, number] {
+    const i = state.lastIndexOf(".");
+
+    if (i >= 1) {
+        const num = state.slice(i+1);
+        if (num.match(/\d+/)) {
+            return [state.slice(0, i), parseInt(num)];
+        }
+    }
+
+    return [state, 0];
+}
+
+
+export function join_state(name: string, version: number) {
+    return name + "." + version.toString();
+}
+
+/**
+ * Makes a map to convert states in `target` that overlaps with any state in `base`. Overlapping
+ * states will be mapped to states of same name but with an incremented version.
+ * 
+ * ```
+ * make_state_conversion_map(["a","b"], ["a","c"])
+ * // {a:"a.1",c:"c"}
+ * ```
+ * 
+ * @param base Base states to check for overlap.
+ * @param target States that will be mapped to avoid overlap.
+ * @returns An object that maps the states in `target` to their respective non-overlapping names.
+ */
+export function make_state_conversion_map(base: Iterable<State>, target: Iterable<State>) {
+    const visited = new Set(base);
+    const state_map: {[key: string]: string} = {};
+
+    for (let state of target) {
+        if (!visited.has(state)) {
+            state_map[state] = state;
+            visited.add(state);
+            continue;
+        }
+        let [name, version] = split_state(state);
+        while (true) {
+            version++;
+            const new_state = join_state(name, version);
+            if (!visited.has(new_state)) {
+                state_map[state] = new_state;
+                visited.add(new_state);
+                break;
+            }
+        }
+    }
+    return state_map;
+}
 
 export class FiniteAutomaton {
     states: Set<State>;
@@ -110,11 +182,11 @@ export class FiniteAutomaton {
     final_states: Set<State>;
 
     constructor(
-        transitions: (Transition|TransitionTuple)[] | TransitionMap,
+        transitions: TransitionMap | (Transition|TransitionTuple)[],
         initial_state: State,
         final_states: Set<State> | State[] | null = null,
         states: Set<State> | State[] | null = null,
-        alphabet: Set<string> | null = null,
+        alphabet: Set<string> | string[] | null = null,
     ) {
         if (transitions instanceof Array) {
             transitions = get_transition_map(transitions);
@@ -124,6 +196,9 @@ export class FiniteAutomaton {
         }
         if (states instanceof Array) {
             states = new Set(states);
+        }
+        if (alphabet instanceof Array) {
+            alphabet = new Set(alphabet);
         }
 
         this.transition_map = transitions;
@@ -164,5 +239,39 @@ export class FiniteAutomaton {
             }
         }
         return true;
+    }
+
+    union(automaton: FiniteAutomaton): FiniteAutomaton {
+        const {u} = make_state_conversion_map(this.states, ["u"]);
+        const state_map = make_state_conversion_map([...this.states, u], automaton.states);
+
+        const states = [
+            ...this.states,
+            ...Array.from(automaton.states, s => state_map[s]),
+            u
+        ]
+
+        const automaton_transitions: TransitionTuple[] = Array.from(
+            automaton.traverse_transitions(),
+            ([start, symbol, end]) => [state_map[start], symbol, state_map[end]]
+        );
+        const transitions: TransitionTuple[] = [
+            ...this.traverse_transitions(),
+            ...automaton_transitions,
+            [u, Epsilon, this.initial_state],
+            [u, Epsilon, state_map[automaton.initial_state]],
+        ];
+
+        const final = [
+            ...this.final_states,
+            ...Array.from(automaton.final_states, s => state_map[s])
+        ];
+        const alphabet = [...this.alphabet, ...automaton.alphabet];
+
+        return new FiniteAutomaton(transitions, u, final, states, alphabet);
+    }
+
+    complement() {
+
     }
 }
