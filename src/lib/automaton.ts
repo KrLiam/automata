@@ -1,9 +1,18 @@
 
+export function has_intersection<T>(a: Set<T>, b: Set<T> ): boolean {
+    for (let value of a) {
+        if (b.has(value)) return true;
+    }
+    return false;
+}
+
+
 export const Epsilon = "";
 
 export type State = string;
-
 export type TransitionTuple = [State, string, State];
+export type SymbolMap = {[symbol: string]: State | Set<State>};
+export type TransitionMap = {[state: string]: {[symbol: string]: State | Set<State>}}
 
 export class Transition {
     start: State;
@@ -27,8 +36,6 @@ export class Transition {
     }
 }
 
-
-export type TransitionMap = {[state: string]: {[symbol: string]: State | Set<State>}}
 
 export function get_transition_map(transitions: (Transition|TransitionTuple)[]): TransitionMap {
     const map: TransitionMap = {};
@@ -69,6 +76,7 @@ export function get_alphabet(transitions: (Transition|TransitionTuple)[] | Trans
 
     for (let symbol_map of Object.values(transitions)) {
         for (let symbol of Object.keys(symbol_map)) {
+            if (symbol === Epsilon) continue;
             alphabet.add(symbol);
         }
     }
@@ -101,25 +109,26 @@ export function get_states(transitions: (Transition|TransitionTuple)[] | Transit
     return states;
 }
 
+
 /**
  * Splits the name of a state containing a numeric version in the
  * format `<name>.<version>`.
  * 
  * ```
- * split_state("q1.3")
+ * split_state_version("q1.3")
  * // ["q1", 3]
- * split_state("no")
+ * split_state_version("no")
  * // ["no", 0]
- * split_state("dotted.name.4")
+ * split_state_version("dotted.name.4")
  * // ["dotted.name", 4]
- * split_state(".weird")
+ * split_state_version(".weird")
  * // [".weird", 0]
  * ```
  * 
  * @param state 
  * @returns A tuple containing the state name and version.
  */
-export function split_state(state: State): [string, number] {
+export function split_state_version(state: State): [string, number] {
     const i = state.lastIndexOf(".");
 
     if (i >= 1) {
@@ -132,10 +141,19 @@ export function split_state(state: State): [string, number] {
     return [state, 0];
 }
 
-
-export function join_state(name: string, version: number) {
+export function join_state_version(name: string, version: number) {
     return name + "." + version.toString();
 }
+
+
+export function split_state_set(state: State) {
+    return new Set(state.split(","));
+}
+
+export function join_state_set(states: Set<State>) {
+    return Array.from(states).sort().join(",");
+}
+
 
 /**
  * Makes a map to convert states in `target` that overlaps with any state in `base`. Overlapping
@@ -160,10 +178,10 @@ export function make_state_conversion_map(base: Iterable<State>, target: Iterabl
             visited.add(state);
             continue;
         }
-        let [name, version] = split_state(state);
+        let [name, version] = split_state_version(state);
         while (true) {
             version++;
-            const new_state = join_state(name, version);
+            const new_state = join_state_version(name, version);
             if (!visited.has(new_state)) {
                 state_map[state] = new_state;
                 visited.add(new_state);
@@ -173,6 +191,7 @@ export function make_state_conversion_map(base: Iterable<State>, target: Iterabl
     }
     return state_map;
 }
+
 
 export class FiniteAutomaton {
     states: Set<State>;
@@ -206,6 +225,18 @@ export class FiniteAutomaton {
         this.final_states = final_states ? final_states : new Set();
         this.states = states ? states : get_states(transitions);
         this.alphabet = alphabet ? alphabet : get_alphabet(transitions);
+    }
+
+    transition(state: State, symbol: string): Set<string> | undefined {
+        const symbol_map = this.transition_map[state];
+        if (!symbol_map) return;
+
+        let end_states = symbol_map[symbol];
+        if (!end_states) return;
+
+        if (typeof end_states === "string") end_states = new Set([end_states]);
+
+        return end_states;
     }
 
     *traverse_transition_map(): Generator<[State, string, State | Set<State>]> {
@@ -271,7 +302,49 @@ export class FiniteAutomaton {
     }
 
     determinize() {
+        const epsilon_closure = this.compute_epsilon_closure();
+        const transitions: TransitionMap = {};
+        const final_states: Set<State> = new Set();
+        
+        const remaining: State[] = [this.initial_state];
 
+        while (remaining.length) {
+            const state_name = remaining.shift() as State;
+
+            if (transitions[state_name]) continue;
+            transitions[state_name] = {};
+
+            for (let symbol of this.alphabet) {
+                const end_state_set: Set<State> = new Set();
+
+                for (let state of split_state_set(state_name)) {
+                    const end_states = this.transition(state, symbol);
+                    if (!end_states) continue;
+
+                    for (let end_state of end_states) {
+                        for (let closed_end_state of epsilon_closure[end_state]) {
+                            end_state_set.add(closed_end_state);
+                        }
+                    }
+                }
+
+                if (!end_state_set.size) continue;
+                const end_state_name = join_state_set(end_state_set);
+
+                transitions[state_name][symbol] = end_state_name;
+
+                if (has_intersection(this.final_states, end_state_set)) {
+                    final_states.add(end_state_name);
+                }
+                if (!remaining.includes(end_state_name) && !transitions[end_state_name]) {
+                    remaining.push(end_state_name);
+                }
+            }
+        }
+
+        const initial_state = join_state_set(epsilon_closure[this.initial_state]);
+
+        return new FiniteAutomaton(transitions, initial_state, final_states, null, this.alphabet);
     }
 
     union(automaton: FiniteAutomaton): FiniteAutomaton {
