@@ -241,6 +241,39 @@ export class FiniteAutomaton {
         return true;
     }
 
+    compute_epsilon_closure() {
+        const closure: {[state: State]: Set<State>} = {};
+
+        for (let originState of this.states) {
+            const reached = [];
+            const queue = [originState];
+
+            while (queue.length) {
+                const state = queue.shift() as string;
+                reached.push(state);
+
+                const end_states = this.transition_map[state][Epsilon];
+                if (!end_states) continue;
+
+                if (typeof end_states === "string") {
+                    queue.push(end_states);
+                    continue;
+                }
+                for (let end_state of end_states) {
+                    queue.push(end_state);
+                }
+            }
+
+            closure[originState] = new Set(reached);
+        }
+
+        return closure;
+    }
+
+    determinize() {
+
+    }
+
     union(automaton: FiniteAutomaton): FiniteAutomaton {
         const {u} = make_state_conversion_map(this.states, ["u"]);
         const state_map = make_state_conversion_map([...this.states, u], automaton.states);
@@ -272,6 +305,5 @@ export class FiniteAutomaton {
     }
 
     complement() {
-
     }
 }
