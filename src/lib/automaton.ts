@@ -311,10 +311,12 @@ export class FiniteAutomaton {
             if (transitions[state_name]) continue;
             transitions[state_name] = {};
 
+            const state_set = split_state_set(state_name);
+
             for (let symbol of this.alphabet) {
                 const end_state_set: Set<State> = new Set();
 
-                for (let state of split_state_set(state_name)) {
+                for (let state of state_set) {
                     const end_states = this.transition(state, symbol);
                     if (!end_states) continue;
 
@@ -330,12 +332,13 @@ export class FiniteAutomaton {
 
                 transitions[state_name][symbol] = end_state_name;
 
-                if (has_intersection(this.final_states, end_state_set)) {
-                    final_states.add(end_state_name);
-                }
                 if (!remaining.includes(end_state_name) && !transitions[end_state_name]) {
                     remaining.push(end_state_name);
                 }
+            }
+
+            if (has_intersection(this.final_states, state_set)) {
+                final_states.add(state_name);
             }
         }
 
