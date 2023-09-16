@@ -227,16 +227,27 @@ export class FiniteAutomaton {
         this.alphabet = alphabet ? alphabet : get_alphabet(transitions);
     }
 
-    transition(state: State, symbol: string): Set<string> | undefined {
+    transition(state: State, symbol: string | null): Set<string> | undefined {
         const symbol_map = this.transition_map[state];
         if (!symbol_map) return;
 
-        let end_states = symbol_map[symbol];
-        if (!end_states) return;
+        let states: State[] = [];
 
-        if (typeof end_states === "string") end_states = new Set([end_states]);
+        if (symbol !== null) {
+            const end_states = symbol_map[symbol];
+            if (typeof end_states === "string") states = [end_states];
+            else if (end_states) states = [...end_states];
+        }
+        else {
+            const values = Object.values(symbol_map);
+            for (let value of values) {
+                if (typeof value === "string") states.push(value);
+                else states = [...states, ...value];
+            }
+        }
+        if (!states.length) return;
 
-        return end_states;
+        return new Set(states);
     }
 
     *traverse_transition_map(): Generator<[State, string, State | Set<State>]> {
@@ -272,25 +283,32 @@ export class FiniteAutomaton {
         return true;
     }
 
-    compute_epsilon_closure() {
+    get_reachable(origin: State, symbol: string | null = null) {
+        const reached = [];
+        const queue = [origin];
+    
+        while (queue.length) {
+            const state = queue.shift() as string;
+            reached.push(state);
+    
+            const end_states = this.transition(state, symbol)
+            if (!end_states) continue;
+    
+            for (let end_state of end_states) {
+                if (!reached.includes(end_state) && !queue.includes(end_state)) {
+                    queue.push(end_state);
+                }
+            }
+        }
+
+        return reached;
+    }
+
+    compute_closure(symbol: string | null = null) {
         const closure: {[state: State]: Set<State>} = {};
 
         for (let originState of this.states) {
-            const reached = [];
-            const queue = [originState];
-
-            while (queue.length) {
-                const state = queue.shift() as string;
-                reached.push(state);
-
-                const end_states = this.transition(state, Epsilon)
-                if (!end_states) continue;
-
-                for (let end_state of end_states) {
-                    if (!reached.includes(end_state)) queue.push(end_state);
-                }
-            }
-
+            const reached = this.get_reachable(originState, symbol);
             closure[originState] = new Set(reached);
         }
 
@@ -298,7 +316,7 @@ export class FiniteAutomaton {
     }
 
     determinize() {
-        const epsilon_closure = this.compute_epsilon_closure();
+        const epsilon_closure = this.compute_closure(Epsilon);
         const initial_state = join_state_set(epsilon_closure[this.initial_state]);
         const transitions: TransitionMap = {};
         const final_states: Set<State> = new Set();
@@ -376,6 +394,29 @@ export class FiniteAutomaton {
     }
 
     complement() {
+    }
+
+    renumerate(names: Iterable<string>) {
+        const ordered_states = this.get_reachable(this.initial_state);
+        const name_map: {[name: string]: string} = {};
+
+        if (ordered_states.length) {
+            for (let name of names) {
+                if (!ordered_states.length) break;
+                name_map[ordered_states[0]] = name;
+                ordered_states.shift();
+            }
+        }
+
+        const states = Array.from(this.states, s => name_map[s]);
+        const transitions: TransitionTuple[] = Array.from(
+            this.traverse_transitions(),
+            ([start, symbol, end]) => [name_map[start], symbol, name_map[end]]
+        );
+        const final = Array.from(this.final_states, s => name_map[s]);
+        const initial = name_map[this.initial_state];
+
+        return new FiniteAutomaton(transitions, initial, final, states, this.alphabet);
     }
 }
 
