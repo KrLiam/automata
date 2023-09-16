@@ -283,15 +283,11 @@ export class FiniteAutomaton {
                 const state = queue.shift() as string;
                 reached.push(state);
 
-                const end_states = this.transition_map[state][Epsilon];
+                const end_states = this.transition(state, Epsilon)
                 if (!end_states) continue;
 
-                if (typeof end_states === "string") {
-                    queue.push(end_states);
-                    continue;
-                }
                 for (let end_state of end_states) {
-                    queue.push(end_state);
+                    if (!reached.includes(end_state)) queue.push(end_state);
                 }
             }
 
@@ -303,10 +299,11 @@ export class FiniteAutomaton {
 
     determinize() {
         const epsilon_closure = this.compute_epsilon_closure();
+        const initial_state = join_state_set(epsilon_closure[this.initial_state]);
         const transitions: TransitionMap = {};
         const final_states: Set<State> = new Set();
         
-        const remaining: State[] = [this.initial_state];
+        const remaining: State[] = [initial_state];
 
         while (remaining.length) {
             const state_name = remaining.shift() as State;
@@ -341,8 +338,6 @@ export class FiniteAutomaton {
                 }
             }
         }
-
-        const initial_state = join_state_set(epsilon_closure[this.initial_state]);
 
         return new FiniteAutomaton(transitions, initial_state, final_states, null, this.alphabet);
     }
@@ -379,4 +374,49 @@ export class FiniteAutomaton {
 
     complement() {
     }
+}
+
+export function format_transition_table(automaton: FiniteAutomaton) {
+    const columns = [];
+    
+    const states = Array.from(automaton.states).sort();
+    const alphabet = Array.from(automaton.alphabet).sort();
+
+    const states_column = ["    δ"];
+    for (let state of states) {
+        let prefix = "";
+        if (state === automaton.initial_state) prefix += "-> "; 
+        if (automaton.final_states.has(state)) prefix += "*";
+
+        const value = prefix.padStart(4, " ") + "{" + state + "}";
+        states_column.push(value);
+    }
+    columns.push(states_column);
+
+    for (let symbol of [Epsilon, ...alphabet]) {
+        const column = [symbol === Epsilon ? "ε" : symbol];
+
+        for (let state of states) {
+            const end_state = automaton.transition(state, symbol);
+            const value = end_state ? "{" + join_state_set(end_state) + "}" : "-";
+            column.push(value);
+        }
+
+        columns.push(column);
+    }
+
+    for (let column of columns) {
+        const max_length = Math.max(...column.map(s => s.length));
+        for (let i = 0; i < column.length; i++) {
+            column[i] = column[i].padEnd(max_length, " ");
+        }
+    }
+
+    const lines = [];
+    for (let i = 0; i < columns[0].length; i++) {
+        const line = columns.map(column => column[i]).join("   ");
+        lines.push(line);
+    }
+
+    return lines.join("\n");
 }
