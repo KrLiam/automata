@@ -54,7 +54,7 @@ export class UnexpectedToken extends InvalidSyntax {
     expectedPatterns: string[];
 
     constructor(token: Token, expectedPatterns: string[]) {
-        let patterns = expectedPatterns.join(", ");
+        const patterns = expectedPatterns.join(", ");
         super(`Expected ${patterns} but got value '${token.value}'`);
         
         this.token = token;
@@ -154,8 +154,8 @@ export class TokenStream {
     set index(value) { this.context.index = value; }
 
     bakeRegex() {
-        let patterns = [];
-        for (let [key, value] of Object.entries(this.syntax_rules)) {
+        const patterns: string[] = [];
+        for (const [key, value] of Object.entries(this.syntax_rules)) {
             patterns.push(`(?<${key}>${value})`);
         }
         this.regex = new RegExp(patterns.join("|"));
@@ -273,7 +273,7 @@ export class TokenStream {
         tokens: string[], callback: (() => T) | null = null
     ): T | TokenStream {
         const newIgnoredtokens = [...this.ignoredTokens];
-        for (let token of tokens) {
+        for (const token of tokens) {
             if (!newIgnoredtokens.includes(token)) {
                 newIgnoredtokens.push(token);
             }
@@ -378,7 +378,7 @@ export class TokenStream {
 
     *collect_multiple(...patterns: string[]): Generator<(Token|null)[]> {
         if (!patterns.length) {
-            for (let token of this) {
+            for (const token of this) {
                 yield [token];
             }
             return;
@@ -399,7 +399,7 @@ export class TokenStream {
 
     *collect(pattern: string | null = null): Generator<Token> {
         const args = pattern ? [pattern] : [];
-        for (let [result] of this.collect_multiple(...args)) {
+        for (const [result] of this.collect_multiple(...args)) {
             if (!result) break;
             yield result;
         }
@@ -413,7 +413,7 @@ export class TokenStream {
             yield* this.collect(patterns[0]);
         }
         else {
-            for (let matches of this.collect_multiple(...patterns)) {
+            for (const matches of this.collect_multiple(...patterns)) {
                 const value = matches.filter(v => v !== null) as Token[];
                 yield value[0];
             }
@@ -421,7 +421,7 @@ export class TokenStream {
     }
 
     expect_multiple(...patterns: string[]): (Token|null)[] {
-        for (let result of this.collect_multiple(...patterns)) {
+        for (const result of this.collect_multiple(...patterns)) {
             return result;
         }
         const token = this.peek();
@@ -429,14 +429,14 @@ export class TokenStream {
     }
     
     expect(pattern: string | null = null): Token {
-        for (let result of this.collect(pattern)) {
+        for (const result of this.collect(pattern)) {
             return result;
         }
         const token = this.peek();
         throw token ? new UnexpectedToken(token, [pattern ? pattern : "any"]) : new UnexpectedEOF();
     }
 
-    *expect_any(...patterns: string[]): Generator<Token> {
+    expect_any(...patterns: string[]): Token {
         if (patterns.length == 0) {
             return this.expect();
         }
@@ -445,12 +445,12 @@ export class TokenStream {
         }
         else {
             const matches = this.expect_multiple(...patterns);
-            return matches.find(v => v !== null);
+            return matches.find(v => v !== null) as Token;
         }
     }
 
     get(...patterns: string[]): Token | null {
-        for (let result of this.collect_multiple(...patterns)) {
+        for (const result of this.collect_multiple(...patterns)) {
             return result.find(v => v !== null) as Token;
         }
         return null;

@@ -1,6 +1,6 @@
 
 export function has_intersection<T>(a: Set<T>, b: Set<T> ): boolean {
-    for (let value of a) {
+    for (const value of a) {
         if (b.has(value)) return true;
     }
     return false;
@@ -74,8 +74,8 @@ export function get_alphabet(transitions: (Transition|TransitionTuple)[] | Trans
 
     const alphabet = new Set<string>();
 
-    for (let symbol_map of Object.values(transitions)) {
-        for (let symbol of Object.keys(symbol_map)) {
+    for (const symbol_map of Object.values(transitions)) {
+        for (const symbol of Object.keys(symbol_map)) {
             if (symbol === Epsilon) continue;
             alphabet.add(symbol);
         }
@@ -91,12 +91,12 @@ export function get_states(transitions: (Transition|TransitionTuple)[] | Transit
 
     const states = new Set<string>();
 
-    for (let [start_state, symbol_map] of Object.entries(transitions)) {
+    for (const [start_state, symbol_map] of Object.entries(transitions)) {
         states.add(start_state);
 
-        for (let end_state of Object.values(symbol_map)) {
+        for (const end_state of Object.values(symbol_map)) {
             if (end_state instanceof Set) {
-                for (let state of end_state) {
+                for (const state of end_state) {
                     states.add(state);
                 }
                 continue;
@@ -172,7 +172,7 @@ export function make_state_conversion_map(base: Iterable<State>, target: Iterabl
     const visited = new Set(base);
     const state_map: {[key: string]: string} = {};
 
-    for (let state of target) {
+    for (const state of target) {
         if (!visited.has(state)) {
             state_map[state] = state;
             visited.add(state);
@@ -240,7 +240,7 @@ export class FiniteAutomaton {
         }
         else {
             const values = Object.values(symbol_map);
-            for (let value of values) {
+            for (const value of values) {
                 if (typeof value === "string") states.push(value);
                 else states = [...states, ...value];
             }
@@ -251,8 +251,8 @@ export class FiniteAutomaton {
     }
 
     *traverse_transition_map(): Generator<[State, string, State | Set<State>]> {
-        for (let [start_state, symbol_map] of Object.entries(this.transition_map)) {
-            for (let [symbol, end_states] of Object.entries(symbol_map)) {
+        for (const [start_state, symbol_map] of Object.entries(this.transition_map)) {
+            for (const [symbol, end_states] of Object.entries(symbol_map)) {
                 yield [start_state, symbol, end_states];
             }
         }
@@ -260,9 +260,9 @@ export class FiniteAutomaton {
     }
 
     *traverse_transitions(): Generator<TransitionTuple> {
-        for (let [start_state, symbol, end_states] of this.traverse_transition_map()) {
+        for (const [start_state, symbol, end_states] of this.traverse_transition_map()) {
             if (end_states instanceof Set) {
-                for (let state of end_states) {
+                for (const state of end_states) {
                     yield [start_state, symbol, state];
                 }
                 continue;
@@ -272,7 +272,7 @@ export class FiniteAutomaton {
     }
     
     is_deterministic() {
-        for (let [_, symbol, end_states] of this.traverse_transition_map()) {
+        for (const [_, symbol, end_states] of this.traverse_transition_map()) {
             if (symbol === Epsilon) {
                 return false;
             }
@@ -294,7 +294,7 @@ export class FiniteAutomaton {
             const end_states = this.transition(state, symbol)
             if (!end_states) continue;
     
-            for (let end_state of end_states) {
+            for (const end_state of end_states) {
                 if (!reached.includes(end_state) && !queue.includes(end_state)) {
                     queue.push(end_state);
                 }
@@ -307,7 +307,7 @@ export class FiniteAutomaton {
     compute_closure(symbol: string | null = null) {
         const closure: {[state: State]: Set<State>} = {};
 
-        for (let originState of this.states) {
+        for (const originState of this.states) {
             const reached = this.get_reachable(originState, symbol);
             closure[originState] = new Set(reached);
         }
@@ -331,15 +331,15 @@ export class FiniteAutomaton {
 
             const state_set = split_state_set(state_name);
 
-            for (let symbol of this.alphabet) {
+            for (const symbol of this.alphabet) {
                 const end_state_set: Set<State> = new Set();
 
-                for (let state of state_set) {
+                for (const state of state_set) {
                     const end_states = this.transition(state, symbol);
                     if (!end_states) continue;
 
-                    for (let end_state of end_states) {
-                        for (let closed_end_state of epsilon_closure[end_state]) {
+                    for (const end_state of end_states) {
+                        for (const closed_end_state of epsilon_closure[end_state]) {
                             end_state_set.add(closed_end_state);
                         }
                     }
@@ -401,7 +401,7 @@ export class FiniteAutomaton {
         const name_map: {[name: string]: string} = {};
 
         if (ordered_states.length) {
-            for (let name of names) {
+            for (const name of names) {
                 if (!ordered_states.length) break;
                 name_map[ordered_states[0]] = name;
                 ordered_states.shift();
@@ -427,7 +427,7 @@ export function format_transition_table(automaton: FiniteAutomaton) {
     const alphabet = Array.from(automaton.alphabet).sort();
 
     const states_column = ["    δ"];
-    for (let state of states) {
+    for (const state of states) {
         let prefix = "";
         if (state === automaton.initial_state) prefix += "-> "; 
         if (automaton.final_states.has(state)) prefix += "*";
@@ -437,10 +437,10 @@ export function format_transition_table(automaton: FiniteAutomaton) {
     }
     columns.push(states_column);
 
-    for (let symbol of [Epsilon, ...alphabet]) {
+    for (const symbol of [Epsilon, ...alphabet]) {
         const column = [symbol === Epsilon ? "ε" : symbol];
 
-        for (let state of states) {
+        for (const state of states) {
             const end_state = automaton.transition(state, symbol);
             const value = end_state ? join_state_set(end_state) : "-";
             column.push(value);
@@ -449,7 +449,7 @@ export function format_transition_table(automaton: FiniteAutomaton) {
         columns.push(column);
     }
 
-    for (let column of columns) {
+    for (const column of columns) {
         const max_length = Math.max(...column.map(s => s.length));
         for (let i = 0; i < column.length; i++) {
             column[i] = column[i].padEnd(max_length, " ");
