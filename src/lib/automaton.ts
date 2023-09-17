@@ -411,6 +411,29 @@ export class FiniteAutomaton {
         return new FiniteAutomaton(this.traverse_transitions(), this.initial_state, final, this.states, this.alphabet);
     }
 
+    intersection(automaton: FiniteAutomaton) {
+        const result = this.union(automaton).determinize();
+
+        const final_states_union = new Set([...this.final_states, ...automaton.final_states]);
+
+        const final_states: Set<State> = new Set();
+        for (let state of result.states) {
+            const state_set = split_state_set(state);
+
+            if (Array.from(state_set).every(s => final_states_union.has(s))) {
+                final_states.add(state);
+            }
+        }
+
+        return new FiniteAutomaton(
+            result.traverse_transitions(),
+            result.initial_state,
+            final_states,
+            result.states,
+            result.alphabet,
+        );
+    }
+
     renumerate(names: Iterable<string>) {
         const ordered_states = this.get_reachable(this.initial_state);
         const name_map: {[name: string]: string} = {};
