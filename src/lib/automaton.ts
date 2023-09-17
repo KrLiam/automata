@@ -1,4 +1,11 @@
 
+export function is_iterable(obj: any): obj is Iterable<any> {
+    if (obj == null) {
+        return false;
+    }
+    return typeof obj[Symbol.iterator] === 'function';
+}
+
 export function has_intersection<T>(a: Set<T>, b: Set<T> ): boolean {
     for (const value of a) {
         if (b.has(value)) return true;
@@ -37,7 +44,7 @@ export class Transition {
 }
 
 
-export function get_transition_map(transitions: (Transition|TransitionTuple)[]): TransitionMap {
+export function get_transition_map(transitions: Iterable<Transition|TransitionTuple>): TransitionMap {
     const map: TransitionMap = {};
 
     for (let transition of transitions) {
@@ -65,6 +72,20 @@ export function get_transition_map(transitions: (Transition|TransitionTuple)[]):
     }
 
     return map;
+}
+
+export function* get_transitions(map: TransitionMap): Generator<TransitionTuple> {
+    for (const [start_state, symbol_map] of Object.entries(map)) {
+        for (const [symbol, end_states] of Object.entries(symbol_map)) {
+            if (end_states instanceof Set) {
+                for (const state of end_states) {
+                    yield [start_state, symbol, state];
+                }
+                continue;
+            }
+            yield [start_state, symbol, end_states];
+        }
+    }
 }
 
 export function get_alphabet(transitions: (Transition|TransitionTuple)[] | TransitionMap): Set<string> {
@@ -201,15 +222,12 @@ export class FiniteAutomaton {
     final_states: Set<State>;
 
     constructor(
-        transitions: TransitionMap | (Transition|TransitionTuple)[],
+        transitions: Iterable<Transition|TransitionTuple>,
         initial_state: State,
         final_states: Set<State> | State[] | null = null,
         states: Set<State> | State[] | null = null,
         alphabet: Set<string> | string[] | null = null,
     ) {
-        if (transitions instanceof Array) {
-            transitions = get_transition_map(transitions);
-        }
         if (final_states instanceof Array) {
             final_states = new Set(final_states);
         }
@@ -220,11 +238,11 @@ export class FiniteAutomaton {
             alphabet = new Set(alphabet);
         }
 
-        this.transition_map = transitions;
+        this.transition_map = get_transition_map(transitions);
         this.initial_state = initial_state;
         this.final_states = final_states ? final_states : new Set();
-        this.states = states ? states : get_states(transitions);
-        this.alphabet = alphabet ? alphabet : get_alphabet(transitions);
+        this.states = states ? states : get_states(this.transition_map);
+        this.alphabet = alphabet ? alphabet : get_alphabet(this.transition_map);
     }
 
     transition(state: State, symbol: string | null): Set<string> | undefined {
@@ -260,15 +278,7 @@ export class FiniteAutomaton {
     }
 
     *traverse_transitions(): Generator<TransitionTuple> {
-        for (const [start_state, symbol, end_states] of this.traverse_transition_map()) {
-            if (end_states instanceof Set) {
-                for (const state of end_states) {
-                    yield [start_state, symbol, state];
-                }
-                continue;
-            }
-            yield [start_state, symbol, end_states];
-        }
+        yield* get_transitions(this.transition_map);
     }
     
     is_deterministic() {
@@ -360,7 +370,7 @@ export class FiniteAutomaton {
             }
         }
 
-        return new FiniteAutomaton(transitions, initial_state, final_states, null, this.alphabet);
+        return new FiniteAutomaton(get_transitions(transitions), initial_state, final_states, null, this.alphabet);
     }
 
     union(automaton: FiniteAutomaton): FiniteAutomaton {
@@ -394,6 +404,11 @@ export class FiniteAutomaton {
     }
 
     complement() {
+        const final = new Set(this.states);
+        for (const state of this.final_states) {
+            final.delete(state);
+        }
+        return new FiniteAutomaton(this.traverse_transitions(), this.initial_state, final, this.states, this.alphabet);
     }
 
     renumerate(names: Iterable<string>) {
