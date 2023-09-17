@@ -432,7 +432,7 @@ export function format_transition_table(automaton: FiniteAutomaton) {
         if (state === automaton.initial_state) prefix += "-> "; 
         if (automaton.final_states.has(state)) prefix += "*";
 
-        const value = prefix.padStart(4, " ") + "{" + state + "}";
+        const value = prefix.padStart(4, " ") + state;
         states_column.push(value);
     }
     columns.push(states_column);
@@ -442,7 +442,7 @@ export function format_transition_table(automaton: FiniteAutomaton) {
 
         for (let state of states) {
             const end_state = automaton.transition(state, symbol);
-            const value = end_state ? "{" + join_state_set(end_state) + "}" : "-";
+            const value = end_state ? join_state_set(end_state) : "-";
             column.push(value);
         }
 
