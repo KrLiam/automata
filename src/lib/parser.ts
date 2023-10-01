@@ -51,6 +51,34 @@ export class CallParser {
     }
 }
 
+export class KeywordParser {
+    parsers: { [name: string]: Parser; };
+    patterns: { [pattern: string]: string; };
+
+    constructor(parsers: {[keyword: string]: Parser}) {
+        this.parsers = {};
+        this.patterns = {};
+
+        for (let [key, parser] of Object.entries(parsers)) {
+            this.add(key, parser);
+        }
+    }
+
+    add(key: string, parser: Parser) {
+        this.parsers[key] = parser;
+        this.patterns[key] = key + "\\b";
+    }
+
+    parse(stream: TokenStream) {
+        const token = stream.syntax(this.patterns, () => (
+            stream.expect_any(...Object.keys(this.patterns)) 
+        ));
+        const parser = this.parsers[token.type];
+        const node = parser.parse(stream);
+        
+        return set_location(node, token);
+    }
+}
 
 export interface ChoosableParser extends Parser {
     prefix: [string, string];
