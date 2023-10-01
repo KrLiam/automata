@@ -68,7 +68,7 @@ export class UnexpectedEOF extends InvalidSyntax {
     }
 }
 
-export type TokenPattern = [string, string];
+export type TokenPattern = string | [string, string];
 
 export class Token {
     type: string

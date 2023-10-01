@@ -81,7 +81,18 @@ export class KeywordParser {
 }
 
 export interface ChoosableParser extends Parser {
-    prefix: [string, string];
+    prefix: TokenPattern;
+    consume?: boolean
+}
+
+export function option(
+    pattern: TokenPattern, parser: Parser, consume: boolean = false
+): ChoosableParser {
+    return {
+        prefix: pattern,
+        consume: consume,
+        parse: parser.parse.bind(parser)
+    }
 }
 
 export class ChooseParser {
@@ -96,24 +107,29 @@ export class ChooseParser {
     
     addOptions(...options: ChoosableParser[]) {
         for (let parser of options) {
-            const [name, pattern] = parser.prefix;
+            const p = parser.prefix;
+            const [name, pattern] = p instanceof Array ? p : [p, null];
+
             this.parsers[name] = parser;
-            this.patterns[name] = pattern;
+            if (pattern) this.patterns[name] = pattern;
         }
     }
 
     parse(stream: TokenStream): AstNode {
-        const patternKeys = Object.keys(this.patterns);
-
         const token = stream.syntax(this.patterns).peek();
 
         if (token) {
             const parser = this.parsers[token.type]
             if (parser) {
-                return parser.parse(stream);
+                if (!parser.consume) return parser.parse(stream);
+                
+                stream.next();
+                const node = parser.parse(stream);
+                return set_location(node, token)
             }
         }
-
+        
+        const patternKeys = Object.keys(this.patterns);
         const node = stream.peek();
         throw node ? new UnexpectedToken(node, patternKeys) : new UnexpectedEOF();
     }
