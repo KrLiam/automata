@@ -5,22 +5,42 @@ import {AstAutomataDefinition, AstChar, AstFinalState, AstIdentifier, AstInitial
 import { Token, set_location } from './tokenstream';
 import {ParseError} from './error';
 
-const PATTERNS = {
-    identifier: "[a-zA-Z_][a-zA-Z0-9_]*",
+
+export enum Patterns {
+    finite = "finite\\b",
+    initial = "initial\\b",
+    final = "final\\b",
+
+    opening_bracket = "\\{",
+    closing_bracket = "\\}",
+    semicolon = ";",
+
+    word = "\\w+",
+    identifier = "[a-zA-Z_][a-zA-Z0-9_]*",
 }
+
+export function pattern(name: keyof typeof Patterns): TokenPattern {
+    return [name, Patterns[name]];
+}
+
 
 export function get_default_parsers(): {[key: string]: Parser} {
     return {
         "identifier": new CallParser(parse_identifier),
         "state": delegate("identifier"),
         "state_list": new CallParser(parse_state_list),
+
+        "module": delegate("root"),
         "root": new CallParser(parse_root),
+
         "statement": new ChooseParser(
-            new InitialStatementParser(),
-            new FinalStatementParser(),
-            new DefineStatementParser(),
-            new TransitionStatementParser(),
+            option(pattern("initial"), new CallParser(parse_initial_state), true),
+            option(pattern("final"), new CallParser(parse_final_states), true),
+            option(pattern("finite"), new CallParser(parse_finite_automaton), true),
+            option(pattern("identifier"), delegate("transition")),
         ),
+
+        "transition": new CallParser(parse_finite_transition),
         "transition:condition": new CallParser(parse_transition_condition)
     }
 }
@@ -75,7 +95,7 @@ export class KeywordParser {
         ));
         const parser = this.parsers[token.type];
         const node = parser.parse(stream);
-        
+
         return set_location(node, token);
     }
 }
@@ -200,7 +220,7 @@ export function parse_root(stream: TokenStream) {
 }
 
 export function parse_identifier(stream: TokenStream) {
-    const token = stream.syntax({identifier: PATTERNS.identifier}, () => {
+    const token = stream.syntax({identifier: Patterns.identifier}, () => {
         return stream.expect("identifier");
     });
     const node = new AstIdentifier({value: token.value});
@@ -225,66 +245,43 @@ export function parse_state_list(stream: TokenStream) {
     return set_location(node, values[0], values[values.length - 1]);
 }
 
-export class InitialStatementParser {
-    prefix: TokenPattern = ["initial", "initial\\b"];
-
-    parse(stream: TokenStream) {
-        stream = stream.syntax({initial: "initial\\b"});
-        const keyword = stream.expect("initial");
-        const value = delegate("state", stream) as AstIdentifier;
-        return set_location(new AstInitialState({value}), keyword, value);
-    }
+export function parse_initial_state(stream: TokenStream) {
+    const value = delegate("state", stream) as AstIdentifier;
+    return set_location(new AstInitialState({value}), value);
 }
 
-export class FinalStatementParser {
-    prefix: TokenPattern = ["final", "final\\b"];
-
-    parse(stream: TokenStream) {
-        stream = stream.syntax({final: "final\\b"});
-        const keyword = stream.expect("final");
-        const list = delegate("state_list", stream) as AstStateList;
-        return set_location(new AstFinalState({list}), keyword, list);
-    }
+export function parse_final_states(stream: TokenStream) {
+    const list = delegate("state_list", stream) as AstStateList;
+    return set_location(new AstFinalState({list}), list);
 }
 
-export class TransitionStatementParser {
-    prefix: TokenPattern = ["identifier", PATTERNS.identifier]
+export function parse_finite_transition(stream: TokenStream) {
+    stream = stream.syntax({colon: ":", arrow: "->"});
 
-    parse(stream: TokenStream) {
-        stream = stream.syntax({colon: ":", arrow: "->"});
+    const start = delegate("state", stream) as AstIdentifier;
+    stream.expect("colon");
+    const condition = delegate("transition:condition", stream);
+    stream.expect("arrow");
+    const end = delegate("state", stream) as AstIdentifier;
 
-        const start = delegate("state", stream) as AstIdentifier;
-        stream.expect("colon");
-        const condition = delegate("transition:condition", stream);
-        stream.expect("arrow");
-        const end = delegate("state", stream) as AstIdentifier;
-
-        const node = new AstTransition({start, end, condition})
-        return set_location(node, start, end);
-    }
+    const node = new AstTransition({start, end, condition})
+    return set_location(node, start, end);
 }
 
 
-export class DefineStatementParser {
-    prefix: TokenPattern = ["define", "define\\b"];
+export function parse_finite_automaton(stream: TokenStream) {
+    const name = delegate("identifier", stream) as AstIdentifier;
+    const body = delegate("root", stream) as AstRoot;
 
-    parse(stream: TokenStream) {
-        stream = stream.syntax({define: "define\\b"});
-
-        const keyword = stream.expect("define");
-        const name = delegate("identifier", stream) as AstIdentifier;
-        const body = delegate("root", stream) as AstRoot;
-
-        const node = new AstAutomataDefinition({name, body})
-        return set_location(node, keyword, body);
-    }
+    const node = new AstAutomataDefinition({name, body})
+    return set_location(node, name, body);
 }
 
 export function parse_transition_condition(stream: TokenStream): AstNode {
     stream = stream.syntax({
         unquoted_char: "[a-zA-Z0-9]\\b",
         quote: "\"",
-        identifier: PATTERNS.identifier
+        identifier: Patterns.identifier
     });
 
     const [unquoted_char, quote, identifier] = stream.expect_multiple(
