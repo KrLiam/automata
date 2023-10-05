@@ -1,5 +1,5 @@
 
-import { InvalidSyntax, UnexpectedToken, type TokenStream, UnexpectedEOF, type TokenPattern } from './tokenstream';
+import { InvalidSyntax, UnexpectedToken, type TokenStream, UnexpectedEOF, type TokenPattern, SourceLocation } from './tokenstream';
 
 import {AstAutomataDefinition, AstChar, AstFinalState, AstIdentifier, AstInitialState, AstNode, AstRoot, AstStateList, AstTransition} from './ast';
 import { Token, set_location } from './tokenstream';
@@ -30,8 +30,12 @@ export function get_default_parsers(): {[key: string]: Parser} {
         "state": delegate("identifier"),
         "state_list": new CallParser(parse_state_list),
 
-        "module": delegate("root"),
-        "root": new CallParser(parse_root),
+        "module": new RootParser(delegate("statement")),
+        "root": new RootParser(
+            delegate("statement"),
+            pattern("opening_bracket"),
+            pattern("closing_bracket"),
+        ),
 
         "statement": new ChooseParser(
             option(pattern("initial"), new CallParser(parse_initial_state), true),
@@ -182,41 +186,77 @@ export class AlternativeParser {
 }
 
 
-export function parse_root(stream: TokenStream) {
-    const patterns = {
-        opening_bracket: "\\{", closing_bracket: "\\}", semicolon: ";"
-    };
-    const node = stream.syntax(patterns, () => {
-        const children: AstNode[] = [];
+export class RootParser {
+    parser: Parser
 
-        const opening = stream.expect("opening_bracket");
-        let closing: Token | null = null;
-        
-        let token = stream.peek();
-        while (token) {
-            if (token.type == "closing_bracket") break;
-            
-            const statement = delegate("statement", stream);
-            children.push(statement);
+    opening_pattern: string | null;
+    closing_pattern: string;
+    patterns: {[name: string]: string};
 
-            const intercepted = stream.intercept(["newline", "eof"]);
-            const [_, __, closing_bracket, ___] = intercepted.expect_multiple(
-                "newline", "semicolon", "closing_bracket", "eof",
-            );
-            if (closing_bracket) {
-                closing = closing_bracket;
-                break;
-            }
+    constructor(
+        parser: Parser,
+        opening: TokenPattern | null = null,
+        closing: TokenPattern = "eof",
+    ) {
+        this.parser = parser;
+        this.patterns = {semicolon: ";"};
 
-            token = stream.peek();
+        if (opening instanceof Array) {
+            const [name, pattern] = opening;
+            this.patterns[name] = pattern;
+            this.opening_pattern = name;
+        }
+        else {
+            this.opening_pattern = opening;
         }
 
-        if (!closing) closing = stream.expect("closing_bracket");
+        if (closing instanceof Array) {
+            const [name, pattern] = closing;
+            this.patterns[name] = pattern;
+            this.closing_pattern = name;
+        }
+        else {
+            this.closing_pattern = closing;
+        }
+    }
 
-        return set_location(new AstRoot({children}), opening, closing);
-    });
+    parse(stream: TokenStream) {
+        const p = stream.peek();
+        const start_location = p ? p.location : SourceLocation.initial;
 
-    return node;
+        return stream.syntax(this.patterns, () => {
+            const children: AstNode[] = [];
+            
+            if (this.opening_pattern) {
+                stream.expect(this.opening_pattern);
+            }
+            let closing: Token | null = null;
+            
+            const intercepted = stream.intercept([this.closing_pattern]);
+
+            let token = intercepted.peek();
+            while (token) {
+                if (token.type.match(this.closing_pattern)) break;
+                
+                const statement = this.parser.parse(stream);
+                children.push(statement);
+
+                const [_, __, closing_token] = intercepted.intercept(["newline"]).expect_multiple(
+                    "newline", "semicolon", this.closing_pattern
+                );
+                if (closing_token) {
+                    closing = closing_token
+                    break;
+                }
+
+                token = intercepted.peek();
+            }
+
+            if (!closing) closing = intercepted.expect(this.closing_pattern);
+
+            return set_location(new AstRoot({children}), start_location, closing);
+        });
+    }
 }
 
 export function parse_identifier(stream: TokenStream) {
