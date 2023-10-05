@@ -15,6 +15,6 @@ export class Compiler {
             return delegate("module", stream);
         })
 
-        return ast
+        return {ast, tokens: [...stream.tokens]};
     }
 }
