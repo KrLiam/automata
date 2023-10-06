@@ -1,24 +1,37 @@
 <template>
   <div
-    contenteditable
-    class="code"
-    spellcheck="false"
-    ref="code"
-    @input="changed($event)"
-    @paste="paste($event)"
-    @keydown="keydown($event)"
-  ></div>
+    class="editor"
+    :style="{width: width}"
+  >
+    <div
+      contenteditable
+      class="code"
+      spellcheck="false"
+      ref="code"
+      @input="changed()"
+      @paste="paste($event)"
+      @keydown="keydown($event)"
+    ></div>
+    <EditorSeparator/>
+  </div>
 </template>
 
 <script lang="ts">
 import { defineComponent } from 'vue';
-import IconDocumentation from './icons/IconDocumentation.vue';
+import EditorSeparator from './EditorSeparator.vue'
 
 export default defineComponent({
+  components: {
+    EditorSeparator,
+  },
   props: {
     changeInterval: {
       type: Number,
       default: 500
+    },
+    width: {
+      type: String,
+      default: "10em"
     }
   },
   data() { return {
@@ -81,14 +94,21 @@ export default defineComponent({
 </script>
 
 <style>
+.editor {
+  display: flex;
+  flex-direction: row;
+  height: 100%;
+}
+
 .code {
-  font: 16px;
+  flex-grow: 1;
+
+  font-family: monospace;
   color:black;
-  width: auto;
   max-width: 50vw;
   height: 100vh;
 
-  background-color:aliceblue;
+  background-color:var(--white);
   padding: 1em;
 
   white-space: pre;

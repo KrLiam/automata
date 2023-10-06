@@ -1,7 +1,6 @@
 <script lang="ts">
 import { defineComponent } from 'vue';
 import EditorArea from './components/EditorArea.vue'
-import EditorSeparator from './components/EditorSeparator.vue'
 
 import {InvalidSyntax, TokenStream} from './lib/tokenstream';
 import { get_default_parsers, delegate, Patterns } from './lib/parser';
@@ -11,8 +10,7 @@ import {AstRoot, AstIdentifier} from './lib/ast'
 
 export default defineComponent({
   components: {
-    EditorArea,
-    EditorSeparator
+    EditorArea
   },
   data() {return {
     compiler: new Compiler()
@@ -36,14 +34,18 @@ export default defineComponent({
     }
   },
   methods: {
-    sourceChanged(source: string) {
+    async sourceChanged(source: string) {
       const element = this.$refs.output as HTMLDivElement;
 
+      const start = Date.now();
+
       try {
-        const {ast} = this.compiler.compile(source);
+        const {ast, tokens} = this.compiler.compile(source);
         const text = JSON.stringify(ast.toObject(), null, 4);
   
         element.innerText = text;
+
+        console.log(`Took ${Date.now() - start}ms to compile.`);
       } catch (err) {
         if (err instanceof InvalidSyntax) {
           element.innerText = err.message
@@ -59,8 +61,8 @@ export default defineComponent({
   <main>
     <EditorArea
       @sourceChanged="sourceChanged"
+      :width="'30em'"
     ></EditorArea>
-    <EditorSeparator/>
     <div class="output" ref="output"></div>
   </main>
 </template>
@@ -68,6 +70,16 @@ export default defineComponent({
 <style>
 :root {
   --white: #f0f0ff;
+  --lighter-white: #f0f8ff;
+  --light-gray: #e9e9f5;
+
+  --black: #181818;
+  --text-dark: rgba(235, 235, 235, 0.64);
+}
+
+body {
+  font-size: 16px;
+  color: black;
 }
 
 main,
@@ -88,18 +100,20 @@ main {
   justify-content: space-between;
   align-items: center;
 }
-main .code {
-  flex-grow: 1;
-}
 main .output {
   flex-grow: 1;
 }
 
+
 .output {
-  white-space: pre;
-  padding: 1em;
-  overflow: scroll;
   max-height: 100vh;
-  background: var(--white);
+  height: 100%;
+  padding: 1em;
+
+  white-space: pre;
+  overflow: scroll;
+
+  color: var(--text-dark);
+  background: var(--black);
 }
 </style>

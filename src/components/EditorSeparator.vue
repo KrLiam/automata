@@ -18,10 +18,11 @@ export default defineComponent({
 
 <style>
 .separator {
-  width: 1.5em;
+  flex-grow: 0;
+  width: 1em;
   height: 100%;
   background: var(--white);
   cursor:ew-resize;
-  box-shadow: 0 0 2rem rgba(0, 0, 0, 0.15);
+  box-shadow: -0.25rem 0 1rem 0 rgba(0, 0, 0, 0.1);
 }
 </style>
