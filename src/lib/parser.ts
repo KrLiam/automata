@@ -14,6 +14,7 @@ export enum Patterns {
     opening_bracket = "\\{",
     closing_bracket = "\\}",
     semicolon = ";",
+    comment = "//.+",
 
     word = "\\w+",
     identifier = "[a-zA-Z_][a-zA-Z0-9_]*",
@@ -224,7 +225,9 @@ export class RootParser {
         const p = stream.peek();
         const start_location = p ? p.location : SourceLocation.initial;
 
-        return stream.syntax(this.patterns, () => {
+        const patterns = {...this.patterns, comment: Patterns.comment};
+        const ignore = ["comment", "whitespace", "newline"];
+        return stream.syntax(patterns, () => stream.ignore(ignore, () => {
             const children: AstNode[] = [];
             
             if (this.opening_pattern) {
@@ -233,14 +236,14 @@ export class RootParser {
             let closing: Token | null = null;
             
             const intercepted = stream.intercept([this.closing_pattern]);
-
+    
             let token = intercepted.peek();
             while (token) {
                 if (token.type.match(this.closing_pattern)) break;
                 
                 const statement = this.parser.parse(stream);
                 children.push(statement);
-
+    
                 const [_, __, closing_token] = intercepted.intercept(["newline"]).expect_multiple(
                     "newline", "semicolon", this.closing_pattern
                 );
@@ -248,14 +251,14 @@ export class RootParser {
                     closing = closing_token
                     break;
                 }
-
+    
                 token = intercepted.peek();
             }
-
+    
             if (!closing) closing = intercepted.expect(this.closing_pattern);
-
+    
             return set_location(new AstRoot({children}), start_location, closing);
-        });
+        }));
     }
 }
 
