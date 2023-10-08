@@ -21,53 +21,29 @@ export type TransitionTuple = [State, string, State];
 export type SymbolMap = {[symbol: string]: State | Set<State>};
 export type TransitionMap = {[state: string]: {[symbol: string]: State | Set<State>}}
 
-export class Transition {
-    start: State;
-    symbol: string;
-    end: State;
 
-    constructor(start: State, symbol: string, end: State) {
-        this.start = start;
-        this.symbol = symbol;
-        this.end = end;
-
-        Object.freeze(this);
-    }
-
-    static from([start, symbol, end]: TransitionTuple | Transition): Transition {
-        return new Transition(start, symbol, end);
-    }
-
-    [Symbol.iterator]() {
-        return [this.start, this.symbol, this.end][Symbol.iterator]();
-    }
-}
-
-
-export function get_transition_map(transitions: Iterable<Transition|TransitionTuple>): TransitionMap {
+export function get_transition_map(transitions: Iterable<TransitionTuple>): TransitionMap {
     const map: TransitionMap = {};
 
     for (let transition of transitions) {
-        if (transition instanceof Array) {
-            transition = Transition.from(transition);
-        }
+        const [start, symbol, end] = transition;
 
-        if (!map[transition.start]) {
-            map[transition.start] = {};
+        if (!map[start]) {
+            map[start] = {};
         }
-        const symbol_map = map[transition.start];
-        const end_state = symbol_map[transition.symbol];
+        const symbol_map = map[start];
+        const end_state = symbol_map[symbol];
 
-        if (end_state === transition.end) continue;
+        if (end_state === end) continue;
 
         if (end_state instanceof Set) {
-            end_state.add(transition.symbol)
+            end_state.add(symbol)
         }
         else if (!end_state) {
-            symbol_map[transition.symbol] = transition.end;
+            symbol_map[symbol] = end;
         }
         else {
-            symbol_map[transition.symbol] = new Set([end_state, transition.end])
+            symbol_map[symbol] = new Set([end_state, end])
         }
     }
 
@@ -88,7 +64,7 @@ export function* get_transitions(map: TransitionMap): Generator<TransitionTuple>
     }
 }
 
-export function get_alphabet(transitions: (Transition|TransitionTuple)[] | TransitionMap): Set<string> {
+export function get_alphabet(transitions: TransitionTuple[] | TransitionMap): Set<string> {
     if (transitions instanceof Array) {
         transitions = get_transition_map(transitions);
     }
@@ -105,7 +81,7 @@ export function get_alphabet(transitions: (Transition|TransitionTuple)[] | Trans
     return alphabet;
 }
 
-export function get_states(transitions: (Transition|TransitionTuple)[] | TransitionMap): Set<State> {
+export function get_states(transitions: TransitionTuple[] | TransitionMap): Set<State> {
     if (transitions instanceof Array) {
         transitions = get_transition_map(transitions);
     }
@@ -222,7 +198,7 @@ export class FiniteAutomaton {
     final_states: Set<State>;
 
     constructor(
-        transitions: Iterable<Transition|TransitionTuple>,
+        transitions: Iterable<TransitionTuple>,
         initial_state: State,
         final_states: Set<State> | State[] | null = null,
         states: Set<State> | State[] | null = null,
