@@ -1,7 +1,7 @@
 
 import { InvalidSyntax, UnexpectedToken, type TokenStream, UnexpectedEOF, type TokenPattern, SourceLocation } from './tokenstream';
 
-import {AstAutomataDefinition, AstChar, AstFinalState, AstIdentifier, AstInitialState, AstNode, AstRoot, AstStateList, AstTransition} from './ast';
+import {AstFiniteAutomaton, AstChar, AstFinalState, AstIdentifier, AstInitialState, AstNode, AstRoot, AstStateList, AstTransition} from './ast';
 import { Token, set_location } from './tokenstream';
 import {ParseError} from './error';
 
@@ -316,7 +316,7 @@ export function parse_finite_automaton(stream: TokenStream) {
     const name = delegate("identifier", stream) as AstIdentifier;
     const body = delegate("root", stream) as AstRoot;
 
-    const node = new AstAutomataDefinition({name, body})
+    const node = new AstFiniteAutomaton({name, body})
     return set_location(node, name, body);
 }
 

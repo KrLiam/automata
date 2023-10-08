@@ -143,15 +143,15 @@ export class AstRoot extends AstNode {
 export class AstModuleRoot extends AstRoot {}
 
 
-export type AstAutomataDefinitionArgs = AstNodeArgs & {
+export type AstFiniteAutomatonArgs = AstNodeArgs & {
     name: AstIdentifier;
     body: AstRoot;
 }
-export class AstAutomataDefinition extends AstNode {
+export class AstFiniteAutomaton extends AstNode {
     name: AstIdentifier;
     body: AstRoot;
 
-    constructor({name, body, ...args}: AstAutomataDefinitionArgs) {
+    constructor({name, body, ...args}: AstFiniteAutomatonArgs) {
         super(args);
         this.name = name;
         this.body = body;
