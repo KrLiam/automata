@@ -1,5 +1,12 @@
 import { AstRoot, AstNode } from "./ast";
 
+export class VisitorError extends Error {
+    constructor(value: any) {
+        super(`Visitor could not match rule for value ${value}. A fallback rule might be missing.`);
+    }
+}
+
+
 export function get_class_hierarchy(obj: any): (typeof Object)[] {
     let cls = Object.getPrototypeOf(obj);
 
@@ -15,13 +22,11 @@ export function get_class_hierarchy(obj: any): (typeof Object)[] {
 
 export type Class<T> = new(...args: any) => T;
 
-export type RuleCallback<T, A, R> = (value: T, args: A) => R;
-
 export class Rule<T, A, R> {
     cls: Class<T>;
-    callback: RuleCallback<T, A, R>;
+    callback: (value: T, args: A) => R;
 
-    constructor(cls: Class<T>, callback: RuleCallback<T, A, R>) {
+    constructor(cls: Class<T>, callback: (value: T, args: A) => R) {
         this.cls = cls;
         this.callback = callback;
     }
@@ -29,7 +34,7 @@ export class Rule<T, A, R> {
 
 
 interface RuleDescriptor<T, A, R> extends PropertyDescriptor {
-    value?: RuleCallback<T, A, R>;
+    value?: (value: T, args: A) => R;
 }
 
 export function rule<T extends Y, A, Y, R>(cls: Class<T>) {
@@ -90,7 +95,7 @@ export class Visitor<T, A, R> {
         }
     }
 
-    invoke(value: T, arg: A): R | undefined {
+    invoke(value: T, arg: A): R {
         const hierarchy = get_class_hierarchy(value) as any[];
 
         for (let cls of hierarchy) {
@@ -101,5 +106,7 @@ export class Visitor<T, A, R> {
                 return rule.callback(value, arg);
             }
         }
+
+        throw new VisitorError(value);
     }
 }
