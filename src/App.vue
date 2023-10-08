@@ -7,6 +7,8 @@ import { get_default_parsers, delegate, Patterns } from './lib/parser';
 import { Transition, FiniteAutomaton, format_transition_table} from './lib/automaton';
 import { Compiler } from './lib/compiler';
 import {AstRoot, AstIdentifier} from './lib/ast'
+import {get_class_hierarchy, Visitor, Rule, rule} from './lib/visitor';
+import {Scope, Evaluator, EvaluationError} from './lib/evaluator';
 
 export default defineComponent({
   components: {
@@ -27,6 +29,12 @@ export default defineComponent({
       Patterns,
       AstRoot,
       AstIdentifier,
+      get_class_hierarchy,
+      Evaluator,
+      Scope,
+      Visitor,
+      rule,
+      Rule,
     };
     for (let [key, value] of Object.entries(expose)) {
       // @ts-ignore
@@ -40,15 +48,25 @@ export default defineComponent({
       const start = Date.now();
 
       try {
-        const {ast, tokens} = this.compiler.compile(source);
+        const {ast, tokens, scope} = this.compiler.compile(source);
         const text = JSON.stringify(ast.toObject(), null, 4);
   
         element.innerText = text;
+
+        // @ts-ignore
+        window.$ast = ast;
+        // @ts-ignore
+        window.$tokens = tokens;
+        // @ts-ignore
+        window.$scope = scope;
 
         console.log(`Took ${Date.now() - start}ms to compile.`);
       } catch (err) {
         if (err instanceof InvalidSyntax) {
           element.innerText = err.message
+        }
+        else if (err instanceof EvaluationError) {
+          console.log(`Error: ${err.message}`);
         }
       }
     }

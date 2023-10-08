@@ -1,11 +1,14 @@
+import { Evaluator, Scope } from "./evaluator";
 import { delegate, get_default_parsers, type Parser } from "./parser";
 import { TokenStream, type TokenPattern } from "./tokenstream";
 
 export class Compiler {
     parsers: {[key: string]: Parser;};
+    evaluator: Evaluator;
 
     constructor() {
         this.parsers = get_default_parsers();
+        this.evaluator = new Evaluator();
     }
 
     compile(source: string) {
@@ -15,6 +18,9 @@ export class Compiler {
             return delegate("module", stream);
         })
 
-        return {ast, tokens: [...stream.tokens]};
+        const scope = new Scope();
+        this.evaluator.invoke(ast, scope);
+
+        return {ast, tokens: [...stream.tokens], scope};
     }
 }
