@@ -17,95 +17,6 @@ export function has_intersection<T>(a: Set<T>, b: Set<T> ): boolean {
 export const Epsilon = "";
 
 export type State = string;
-export type TransitionTuple = [State, string, State];
-export type SymbolMap = {[symbol: string]: State | Set<State>};
-export type TransitionMap = {[state: string]: {[symbol: string]: State | Set<State>}}
-
-
-export function get_transition_map(transitions: Iterable<TransitionTuple>): TransitionMap {
-    const map: TransitionMap = {};
-
-    for (let transition of transitions) {
-        const [start, symbol, end] = transition;
-
-        if (!map[start]) {
-            map[start] = {};
-        }
-        const symbol_map = map[start];
-        const end_state = symbol_map[symbol];
-
-        if (end_state === end) continue;
-
-        if (end_state instanceof Set) {
-            end_state.add(symbol)
-        }
-        else if (!end_state) {
-            symbol_map[symbol] = end;
-        }
-        else {
-            symbol_map[symbol] = new Set([end_state, end])
-        }
-    }
-
-    return map;
-}
-
-export function* get_transitions(map: TransitionMap): Generator<TransitionTuple> {
-    for (const [start_state, symbol_map] of Object.entries(map)) {
-        for (const [symbol, end_states] of Object.entries(symbol_map)) {
-            if (end_states instanceof Set) {
-                for (const state of end_states) {
-                    yield [start_state, symbol, state];
-                }
-                continue;
-            }
-            yield [start_state, symbol, end_states];
-        }
-    }
-}
-
-export function get_alphabet(transitions: TransitionTuple[] | TransitionMap): Set<string> {
-    if (transitions instanceof Array) {
-        transitions = get_transition_map(transitions);
-    }
-
-    const alphabet = new Set<string>();
-
-    for (const symbol_map of Object.values(transitions)) {
-        for (const symbol of Object.keys(symbol_map)) {
-            if (symbol === Epsilon) continue;
-            alphabet.add(symbol);
-        }
-    }
-
-    return alphabet;
-}
-
-export function get_states(transitions: TransitionTuple[] | TransitionMap): Set<State> {
-    if (transitions instanceof Array) {
-        transitions = get_transition_map(transitions);
-    }
-
-    const states = new Set<string>();
-
-    for (const [start_state, symbol_map] of Object.entries(transitions)) {
-        states.add(start_state);
-
-        for (const end_state of Object.values(symbol_map)) {
-            if (end_state instanceof Set) {
-                for (const state of end_state) {
-                    states.add(state);
-                }
-                continue;
-            }
-
-            states.add(end_state);
-        }
-    }
-
-    return states;
-}
-
 
 /**
  * Splits the name of a state containing a numeric version in the
@@ -190,15 +101,103 @@ export function make_state_conversion_map(base: Iterable<State>, target: Iterabl
 }
 
 
+export type FiniteTransition = [State, string, State];
+export type FiniteTransitionMap = {[state: string]: {[symbol: string]: State | Set<State>}}
+
 export class FiniteAutomaton {
     states: Set<State>;
     alphabet: Set<string>;
-    transition_map: TransitionMap;
+    transition_map: FiniteTransitionMap;
     initial_state: State;
     final_states: Set<State>;
 
+    static get_transition_map(transitions: Iterable<FiniteTransition>): FiniteTransitionMap {
+        const map: FiniteTransitionMap = {};
+    
+        for (let transition of transitions) {
+            const [start, symbol, end] = transition;
+    
+            if (!map[start]) {
+                map[start] = {};
+            }
+            const symbol_map = map[start];
+            const end_state = symbol_map[symbol];
+    
+            if (end_state === end) continue;
+    
+            if (end_state instanceof Set) {
+                end_state.add(symbol)
+            }
+            else if (!end_state) {
+                symbol_map[symbol] = end;
+            }
+            else {
+                symbol_map[symbol] = new Set([end_state, end])
+            }
+        }
+    
+        return map;
+    }
+    
+    static* get_transitions(map: FiniteTransitionMap): Generator<FiniteTransition> {
+        for (const [start_state, symbol_map] of Object.entries(map)) {
+            for (const [symbol, end_states] of Object.entries(symbol_map)) {
+                if (end_states instanceof Set) {
+                    for (const state of end_states) {
+                        yield [start_state, symbol, state];
+                    }
+                    continue;
+                }
+                yield [start_state, symbol, end_states];
+            }
+        }
+    }
+    
+    static get_alphabet(transitions: FiniteTransition[] | FiniteTransitionMap): Set<string> {
+        if (transitions instanceof Array) {
+            transitions = this.get_transition_map(transitions);
+        }
+    
+        const alphabet = new Set<string>();
+    
+        for (const symbol_map of Object.values(transitions)) {
+            for (const symbol of Object.keys(symbol_map)) {
+                if (symbol === Epsilon) continue;
+                alphabet.add(symbol);
+            }
+        }
+    
+        return alphabet;
+    }
+    
+    static get_states(transitions: FiniteTransition[] | FiniteTransitionMap): Set<State> {
+        if (transitions instanceof Array) {
+            transitions = this.get_transition_map(transitions);
+        }
+    
+        const states = new Set<string>();
+    
+        for (const [start_state, symbol_map] of Object.entries(transitions)) {
+            states.add(start_state);
+    
+            for (const end_state of Object.values(symbol_map)) {
+                if (end_state instanceof Set) {
+                    for (const state of end_state) {
+                        states.add(state);
+                    }
+                    continue;
+                }
+    
+                states.add(end_state);
+            }
+        }
+    
+        return states;
+    }
+    
+
     constructor(
-        transitions: Iterable<TransitionTuple>,
+        transitions: Iterable<FiniteTransition>,
         initial_state: State,
         final_states: Set<State> | State[] | null = null,
         states: Set<State> | State[] | null = null,
@@ -214,11 +213,11 @@ export class FiniteAutomaton {
             alphabet = new Set(alphabet);
         }
 
-        this.transition_map = get_transition_map(transitions);
+        this.transition_map = FiniteAutomaton.get_transition_map(transitions);
         this.initial_state = initial_state;
         this.final_states = final_states ? final_states : new Set();
-        this.states = states ? states : get_states(this.transition_map);
-        this.alphabet = alphabet ? alphabet : get_alphabet(this.transition_map);
+        this.states = states ? states : FiniteAutomaton.get_states(this.transition_map);
+        this.alphabet = alphabet ? alphabet : FiniteAutomaton.get_alphabet(this.transition_map);
     }
 
     transition(state: State, symbol: string | null): Set<string> | undefined {
@@ -253,8 +252,8 @@ export class FiniteAutomaton {
 
     }
 
-    *traverse_transitions(): Generator<TransitionTuple> {
-        yield* get_transitions(this.transition_map);
+    *traverse_transitions(): Generator<FiniteTransition> {
+        yield* FiniteAutomaton.get_transitions(this.transition_map);
     }
     
     is_deterministic() {
@@ -304,7 +303,7 @@ export class FiniteAutomaton {
     determinize() {
         const epsilon_closure = this.compute_closure(Epsilon);
         const initial_state = join_state_set(epsilon_closure[this.initial_state]);
-        const transitions: TransitionMap = {};
+        const transitions: FiniteTransitionMap = {};
         const final_states: Set<State> = new Set();
         
         const remaining: State[] = [initial_state];
@@ -359,11 +358,11 @@ export class FiniteAutomaton {
             u
         ]
 
-        const automaton_transitions: TransitionTuple[] = Array.from(
+        const automaton_transitions: FiniteTransition[] = Array.from(
             automaton.traverse_transitions(),
             ([start, symbol, end]) => [state_map[start], symbol, state_map[end]]
         );
-        const transitions: TransitionTuple[] = [
+        const transitions: FiniteTransition[] = [
             ...this.traverse_transitions(),
             ...automaton_transitions,
             [u, Epsilon, this.initial_state],
@@ -423,7 +422,7 @@ export class FiniteAutomaton {
         }
 
         const states = Array.from(this.states, s => name_map[s]);
-        const transitions: TransitionTuple[] = Array.from(
+        const transitions: FiniteTransition[] = Array.from(
             this.traverse_transitions(),
             ([start, symbol, end]) => [name_map[start], symbol, name_map[end]]
         );
