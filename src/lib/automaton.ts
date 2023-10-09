@@ -1,4 +1,3 @@
-
 export function is_iterable(obj: any): obj is Iterable<any> {
     if (obj == null) {
         return false;
@@ -12,6 +11,36 @@ export function has_intersection<T>(a: Set<T>, b: Set<T> ): boolean {
     }
     return false;
 }
+
+export function extend<T>(container: T[] | Set<T>, values: Iterable<T>) {
+    if (container instanceof Array) {
+        for (const value of values) {
+            container.push(value);
+        }
+    }
+    else {
+        for (const value of values) {
+            container.add(value);
+        }
+    }
+}
+
+// export function equal(a: any, b: any): boolean {
+//     if (a instanceof Array) {
+//         if (!(b instanceof Array)) return false;
+//         if (a.length !== b.length) return false;
+//         return a.every((v, i) => equal(v, b[i]));
+//     }
+//     if (a instanceof Object) {
+//         const a_keys = Object.keys(a);
+//         const b_keys = Object.keys(b);
+//         for (const key of a_keys) {
+
+//         }
+//     }
+
+//     return a === b;
+// }
 
 
 export const Epsilon = "";
@@ -345,7 +374,13 @@ export class FiniteAutomaton {
             }
         }
 
-        return new FiniteAutomaton(get_transitions(transitions), initial_state, final_states, null, this.alphabet);
+        return new FiniteAutomaton(
+            FiniteAutomaton.get_transitions(transitions),
+            initial_state,
+            final_states,
+            null,
+            this.alphabet
+        );
     }
 
     union(automaton: FiniteAutomaton): FiniteAutomaton {
@@ -476,4 +511,309 @@ export function format_transition_table(automaton: FiniteAutomaton) {
     }
 
     return lines.join("\n");
+}
+
+
+export type TuringShiftChar = ">" | "<" | "-";
+
+export type TuringTransition = [State, string[], State, string[], TuringShiftChar[]];
+
+export type TuringTransitionMapValue = {state: State, write_chars: string[], shift: TuringShiftChar[]};
+export type TuringTransitionSymbolMap = {
+    [read_chars: string]: TuringTransitionMapValue | TuringTransitionMapValue[]
+};
+export type TuringTransitionMapObject = {[state: State]: TuringTransitionSymbolMap};
+
+
+export class TuringTransitionMap {
+    map: TuringTransitionMapObject;
+
+    match_values(a: TuringTransitionMapValue, b:  TuringTransitionMapValue) {
+        return (
+            // match state
+            a.state === b.state &&
+            // match write_chars array
+            a.write_chars.length === b.write_chars.length &&
+            a.write_chars.every((v, i) => v === b.write_chars[i]) &&
+            // match shift array
+            a.shift.length === b.shift.length &&
+            a.shift.every((v, i) => v === b.shift[i])
+        );
+    }
+
+    has_value(values: Iterable<TuringTransitionMapValue>, value: TuringTransitionMapValue) {
+        for (const element of values) {
+            if (this.match_values(element, value)) return true;
+        }
+        return false;
+    }
+
+    constructor(transitions: Iterable<TuringTransition>) {
+        const map: TuringTransitionMapObject = {}
+
+        for (const [start, read_chars, state, write_chars, shift] of transitions) {
+            if (!map[start]) map[start] = {};
+            const symbol_map = map[start];
+            
+            const key = JSON.stringify(read_chars);
+
+            const end_value = symbol_map[key]
+            const value = {state, write_chars, shift};
+
+            console.log(state, key, end_value, value);
+    
+            if (end_value instanceof Array) {
+                if (this.has_value(end_value, value)) continue;
+                end_value.push(value);
+            }
+            else if (!end_value) {
+                symbol_map[key] = value;
+            }
+            else {
+                const values = this.match_values(end_value, value) ? end_value : [end_value, value];
+                symbol_map[key] = values
+            }
+
+        }
+
+        this.map = map;
+    }
+
+    get(state: string): TuringTransitionSymbolMap | undefined;
+    get(state: string, read_chars: string[]
+    ): TuringTransitionMapValue | TuringTransitionMapValue[] | undefined;
+    get(state: string, read_chars: string[] | null = null
+    ): TuringTransitionSymbolMap | TuringTransitionMapValue | TuringTransitionMapValue[] | undefined {
+        const symbol_map = this.map[state];
+        if (read_chars === null) return symbol_map;
+
+        const key = JSON.stringify(read_chars);
+
+        return symbol_map[key];
+    }
+
+    *traverse(): Generator<
+        [string, string[], TuringTransitionMapValue | TuringTransitionMapValue[]]
+    > {
+        for (const [state, symbol_map] of Object.entries(this.map)) {
+            for (let [key, end_value] of Object.entries(symbol_map)) {
+                const read_chars = JSON.parse(key);
+                yield [state, read_chars, end_value]
+            }
+        }
+    }
+
+    *transitions(): Generator<TuringTransition> {
+        for (const [start, read_chars, end_value] of this.traverse()) {
+            if (end_value instanceof Array) {
+                for (const {state, write_chars, shift} of end_value) {
+                    yield [start, read_chars, state, write_chars, shift];
+                }
+            }
+            else {
+                const {state, write_chars, shift} = end_value;
+                yield [start, read_chars, state, write_chars, shift];
+            }
+        }
+    }
+
+    tape_amount() {
+        const [symbol_map, ..._] = Object.values(this.map);
+        const [key, ...__] = Object.keys(symbol_map);
+
+        const read_chars = JSON.parse(key);
+
+        return read_chars.length;
+    }
+
+    alphabet(): Set<string> {
+        const alphabet = new Set<string>();
+    
+        for (const symbol_map of Object.values(this.map)) {
+            for (const [key, end_value] of Object.entries(symbol_map)) {
+                const chars: string[] = JSON.parse(key);
+
+                if (end_value instanceof Array) {
+                    end_value.forEach(v => extend(chars, v.write_chars));
+                }
+                else {
+                    extend(chars, end_value.write_chars);
+                }
+
+                for (const char of chars) {
+                    if (char === Epsilon) continue;
+                    alphabet.add(char);
+                }
+
+            }
+        }
+    
+        return alphabet;
+    }
+    
+    states(): Set<State> {
+        const states = new Set<string>();
+    
+        for (const [start, symbol_map] of Object.entries(this.map)) {
+            states.add(start);
+
+            for (const [_, end_value] of Object.entries(symbol_map)) {
+                if (end_value instanceof Array) {
+                    extend(states, end_value.map(v => v.state));
+                }
+                else {
+                    states.add(end_value.state);
+                }
+            }
+        }
+    
+        return states;
+    }
+}
+
+export class TuringMachine {
+    states: Set<State>;
+    alphabet: Set<string>;
+    transition_map: TuringTransitionMap;
+    initial_state: State;
+    final_states: Set<State>;
+    tapes: string[];
+
+    constructor(
+        transitions: Iterable<TuringTransition>,
+        initial_state: State,
+        final_states: Set<State> | State[] | null = null,
+        tapes: string[] | null = null,
+        states: Set<State> | State[] | null = null,
+        alphabet: Set<string> | string[] | null = null,
+    ) {
+        if (final_states instanceof Array) {
+            final_states = new Set(final_states);
+        }
+        if (states instanceof Array) {
+            states = new Set(states);
+        }
+        if (alphabet instanceof Array) {
+            alphabet = new Set(alphabet);
+        }
+
+        this.transition_map = new TuringTransitionMap(transitions);
+        this.initial_state = initial_state;
+        this.final_states = final_states ? final_states : new Set();
+        this.states = states ? states : this.transition_map.states();
+        this.alphabet = alphabet ? alphabet : this.transition_map.alphabet();
+
+        if (!tapes) {
+            const length = this.transition_map.tape_amount();
+            tapes = Array.from(new Array(length), (_, i) => String.fromCharCode(65 + i));
+        }
+        this.tapes = tapes;
+    }
+    
+    is_deterministic() {
+        for (const [_, read_chars, end_value] of this.transition_map.traverse()) {
+            // still needs to check for Epsilon
+
+            if (end_value instanceof Array && end_value.length > 1) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    get_reachable(origin: State) {
+        const reached = [];
+        const queue = [origin];
+    
+        while (queue.length) {
+            const state = queue.shift() as string;
+            reached.push(state);
+    
+            const symbol_map = this.transition_map.get(state)
+            if (!symbol_map) continue;
+
+            for (let end_value of Object.values(symbol_map)) {
+                if (!(end_value instanceof Array)) end_value = [end_value];
+
+                for (const {state} of end_value) {
+                    if (!reached.includes(state) && !queue.includes(state)) {
+                        queue.push(state);
+                    }
+                }
+            }
+    
+        }
+
+        return reached;
+    }
+
+    union(other: TuringMachine): TuringMachine {
+        if (this.tapes.length !== other.tapes.length) throw new Error(
+            `Cannot make union of turing machines of different tape amount.`
+        );
+
+        const {u} = make_state_conversion_map(this.states, ["u"]);
+        const state_map = make_state_conversion_map([...this.states, u], other.states);
+
+        const states = [
+            ...this.states,
+            ...Array.from(other.states, s => state_map[s]),
+            u
+        ]
+
+        const other_transitions: TuringTransition[] = Array.from(
+            other.transition_map.transitions(),
+            ([start, read_chars, end, write_chars, shift]) => [
+                state_map[start], read_chars, state_map[end], write_chars, shift
+            ]
+        );
+        const epsilon = Array.from(new Array(this.tapes.length), () => Epsilon);
+        const shift: TuringShiftChar[] = Array.from(new Array(this.tapes.length), () => "-");
+        const transitions: TuringTransition[] = [
+            ...this.transition_map.transitions(),
+            ...other_transitions,
+            [u, epsilon, this.initial_state, epsilon, shift],
+            [u, epsilon, state_map[other.initial_state], epsilon, shift],
+        ];
+
+        const final = [
+            ...this.final_states,
+            ...Array.from(other.final_states, s => state_map[s])
+        ];
+        const alphabet = [...this.alphabet, ...other.alphabet];
+
+        return new TuringMachine(transitions, u, final, this.tapes, states, alphabet);
+    }
+
+    renumerate(names: Iterable<string>) {
+        const ordered_states = this.get_reachable(this.initial_state);
+        const name_map: {[name: string]: string} = {};
+
+        if (ordered_states.length) {
+            for (const name of names) {
+                if (!ordered_states.length) break;
+                name_map[ordered_states[0]] = name;
+                ordered_states.shift();
+            }
+        }
+
+        const states = Array.from(this.states, s => name_map[s]);
+        const transitions: TuringTransition[] = Array.from(
+            this.transition_map.transitions(),
+            ([start, read_chars, end, write_chars, shift]) => [
+                name_map[start], read_chars, name_map[end], write_chars, shift
+            ]
+        );
+        const final = Array.from(this.final_states, s => name_map[s]);
+        const initial = name_map[this.initial_state];
+
+        return new TuringMachine(
+            transitions,
+            initial,
+            final,
+            this.tapes,
+            states,
+            this.alphabet
+        );
+    }
 }

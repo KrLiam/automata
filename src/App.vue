@@ -4,7 +4,7 @@ import EditorArea from './components/EditorArea.vue'
 
 import {InvalidSyntax, TokenStream} from './lib/tokenstream';
 import { get_default_parsers, delegate, Patterns } from './lib/parser';
-import { Transition, FiniteAutomaton, format_transition_table} from './lib/automaton';
+import { FiniteAutomaton, TuringMachine, format_transition_table, TuringTransitionMap} from './lib/automaton';
 import { Compiler } from './lib/compiler';
 import {AstRoot, AstIdentifier} from './lib/ast'
 import {get_class_hierarchy, Visitor, Rule, rule} from './lib/visitor';
@@ -22,9 +22,10 @@ export default defineComponent({
       TokenStream,
       get_default_parsers,
       delegate,
-      Transition,
       FiniteAutomaton,
       format_transition_table,
+      TuringMachine,
+      TuringTransitionMap,
       Compiler,
       Patterns,
       AstRoot,
