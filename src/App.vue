@@ -69,6 +69,7 @@ export default defineComponent({
         else if (err instanceof EvaluationError) {
           console.log(`Error: ${err.message}`);
         }
+        else throw err;
       }
     }
   }

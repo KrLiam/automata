@@ -1,23 +1,33 @@
 
 import { InvalidSyntax, UnexpectedToken, type TokenStream, UnexpectedEOF, type TokenPattern, SourceLocation } from './tokenstream';
 
-import {AstFiniteAutomaton, AstChar, AstFinalState, AstIdentifier, AstInitialState, AstNode, AstRoot, AstStateList, AstTransition} from './ast';
+import {AstFiniteAutomaton, AstChar, AstFinalState, AstIdentifier, AstInitialState, AstNode, AstRoot, AstStateList, AstTransition, AstList, AstTuringMachine, AstTuringCharList, AstTuringShiftCharList, AstTuringTransition, AstTuringShiftChar, AstTuringNamedChar, AstTuringNamedShiftChar, AstStartLocationChar, AstEndLocationChar} from './ast';
 import { Token, set_location } from './tokenstream';
 import {ParseError} from './error';
+import type { TuringShiftChar } from './automaton';
 
 
 export enum Patterns {
     finite = "finite\\b",
     initial = "initial\\b",
     final = "final\\b",
+    turing = "turing\\b",
 
     opening_bracket = "\\{",
     closing_bracket = "\\}",
+    opening_square_bracket = "\\[",
+    closing_square_bracket = "\\]",
     semicolon = ";",
+    colon = ":",
+    comma = ",",
     comment = "//.+",
+
+    shift_char = ">|<|-",
 
     word = "\\w+",
     identifier = "[a-zA-Z_][a-zA-Z0-9_]*",
+    symbol = ".",
+    any = "."
 }
 
 export function pattern(name: keyof typeof Patterns): TokenPattern {
@@ -29,7 +39,8 @@ export function get_default_parsers(): {[key: string]: Parser} {
     return {
         "identifier": new CallParser(parse_identifier),
         "state": delegate("identifier"),
-        "state_list": new CallParser(parse_state_list),
+        "state_list": new ListParser(delegate("state"), AstStateList),
+        "char_condition": new CallParser(parse_char_condition),
 
         "module": new RootParser(delegate("statement")),
         "root": new RootParser(
@@ -42,11 +53,59 @@ export function get_default_parsers(): {[key: string]: Parser} {
             option(pattern("initial"), new CallParser(parse_initial_state), true),
             option(pattern("final"), new CallParser(parse_final_states), true),
             option(pattern("finite"), new CallParser(parse_finite_automaton), true),
+            option(pattern("turing"), delegate("turing"), true),
             option(pattern("identifier"), delegate("transition")),
         ),
 
         "transition": new CallParser(parse_finite_transition),
-        "transition:condition": new CallParser(parse_transition_condition)
+
+        "turing": new CallParser(parse_turing_machine),
+        "turing:root": new RootParser(
+            delegate("turing:statement"),
+            pattern("opening_bracket"),
+            pattern("closing_bracket"),
+        ),
+        "turing:statement": new ChooseParser(
+            option(pattern("initial"), new CallParser(parse_initial_state), true),
+            option(pattern("final"), new CallParser(parse_final_states), true),
+            option(pattern("finite"), new CallParser(parse_finite_automaton), true),
+            option(pattern("turing"), delegate("turing"), true),
+            option(pattern("identifier"), delegate("turing:transition")),
+        ),
+        "turing:transition": new CallParser(parse_turing_transition),
+        "turing:chars": new CallParser(parse_turing_chars),
+        "turing:chars:list": new ListParser(
+            delegate("turing:chars:single"),
+            AstTuringCharList,
+            pattern("opening_square_bracket"),
+            pattern("closing_square_bracket"),
+        ),
+        "turing:chars:single": new AlternativeParser([
+            delegate("turing:named_char"),
+            delegate("turing:char"),
+        ]),
+        "turing:named_char": new CallParser(parse_named_char_condition),
+        "turing:char": new AlternativeParser([
+            delegate("turing:char:special"),
+            delegate("char_condition"),
+        ]),
+        "turing:char:special": new CallParser(parse_turing_special_char),
+        "turing:shift": new ChooseParser(
+            option(pattern("opening_square_bracket"), delegate("turing:shift:list")),
+            option(pattern("shift_char"), delegate("turing:shift:single")),
+        ),
+        "turing:shift:list": new ListParser(
+            delegate("turing:shift:single"),
+            AstTuringShiftCharList,
+            pattern("opening_square_bracket"),
+            pattern("closing_square_bracket"),
+        ),
+        "turing:shift:single": new AlternativeParser([
+            delegate("turing:shift:named_char"),
+            delegate("turing:shift:char"),
+        ]),
+        "turing:shift:named_char": new CallParser(parse_turing_named_shift_char),
+        "turing:shift:char": new CallParser(parse_turing_shift_char),
     }
 }
 
@@ -58,14 +117,17 @@ export interface Parser {
 export function delegate(parserName: string): Parser;
 export function delegate(parserName: string, stream: TokenStream): AstNode;
 export function delegate(parserName: string, stream: TokenStream | null = null) {
-    function f(stream: TokenStream) {
+    function delegated(stream: TokenStream) {
         const parser: Parser = stream.data.parsers[parserName];
+        if (parser === undefined) {
+            throw new Error(`Parser '${parserName}' is undefined.`);
+        }
         return parser.parse(stream);
     }
+    
+    if (stream) return delegated(stream);
 
-    if (stream) return f(stream);
-
-    return new CallParser(f);
+    return new CallParser(delegated);
 }
 
 export class CallParser {
@@ -270,23 +332,103 @@ export function parse_identifier(stream: TokenStream) {
     return set_location(node, token);
 }
 
-export function parse_state_list(stream: TokenStream) {
-    stream = stream.syntax({comma: ","});
 
-    const values: AstIdentifier[] = [];
 
-    const token = stream.peek();
-    while (token) {
-        const node = delegate("state", stream) as AstIdentifier;
-        values.push(node);
+export class ListParser<T extends AstList<AstNode>> {
+    parser: Parser;
+    cls: new (...args: any) => T;
 
-        const comma = stream.intercept(["newline"]).get("comma");
-        if (!comma) break;
+    opening_pattern: string | null;
+    closing_pattern: string | null;
+    separator_pattern: string;
+    patterns: {[name: string]: string};
+
+    constructor(
+        parser: Parser,
+        cls: new (...args: any) => T,
+        opening: TokenPattern | null = null,
+        closing: TokenPattern | null = null,
+        separator: TokenPattern = pattern("comma")
+    ) {
+        this.parser = parser;
+        this.cls = cls;
+        this.patterns = {};
+
+        if (opening instanceof Array) {
+            const [name, pattern] = opening;
+            this.patterns[name] = pattern;
+            this.opening_pattern = name;
+        }
+        else {
+            this.opening_pattern = opening;
+        }
+
+        if (closing instanceof Array) {
+            const [name, pattern] = closing;
+            this.patterns[name] = pattern;
+            this.closing_pattern = name;
+        }
+        else {
+            this.closing_pattern = closing;
+        }
+
+        if (separator instanceof Array) {
+            const [name, pattern] = separator;
+            this.patterns[name] = pattern;
+            this.separator_pattern = name;
+        }
+        else {
+            this.separator_pattern = separator;
+        }
     }
 
-    const node = new AstStateList({values});
-    return set_location(node, values[0], values[values.length - 1]);
+    parse(stream: TokenStream): T {    
+        const start_location = stream.location;
+        let end_location: SourceLocation | null = null;
+
+        const values: AstNode[] = [];
+
+        return stream.syntax(this.patterns, () => {
+            const intercepted = stream.intercept(["newline", this.separator_pattern]);
+
+            if (this.opening_pattern) stream.expect(this.opening_pattern);
+            
+            let token = stream.peek();
+            while (token) {
+                if (token.type === this.closing_pattern) {
+                    stream.expect();
+                    end_location = token.endLocation;
+                    break;
+                }
+
+                const node = this.parser.parse(stream);
+                values.push(node);
+                
+                const separator = intercepted.get(this.separator_pattern);
+                if (!separator) {
+                    if (this.closing_pattern) {
+                        const end_token = stream.expect(this.closing_pattern);
+                        end_location = end_token.endLocation;
+                    }
+                    break;
+                };
+
+                token = stream.peek();
+            }
+
+            if (!end_location) {
+                end_location = start_location;
+                if  (values.length) {
+                    end_location = values[values.length - 1].endLocation;
+                }
+            }
+            
+            const node = new this.cls({values});
+            return set_location(node, start_location, end_location);
+        });
+    }
 }
+
 
 export function parse_initial_state(stream: TokenStream) {
     const value = delegate("state", stream) as AstIdentifier;
@@ -303,7 +445,7 @@ export function parse_finite_transition(stream: TokenStream) {
 
     const start = delegate("state", stream) as AstIdentifier;
     stream.expect("colon");
-    const condition = delegate("transition:condition", stream);
+    const condition = delegate("char_condition", stream);
     stream.expect("arrow");
     const end = delegate("state", stream) as AstIdentifier;
 
@@ -320,7 +462,7 @@ export function parse_finite_automaton(stream: TokenStream) {
     return set_location(node, name, body);
 }
 
-export function parse_transition_condition(stream: TokenStream): AstNode {
+export function parse_char_condition(stream: TokenStream): AstIdentifier | AstChar {
     stream = stream.syntax({
         unquoted_char: "[a-zA-Z0-9]\\b",
         quote: "\"",
@@ -334,20 +476,119 @@ export function parse_transition_condition(stream: TokenStream): AstNode {
     let node;
 
     if (unquoted_char) {
-        node = new AstChar({value: unquoted_char.value});
+        node = set_location(
+            new AstChar({value: unquoted_char.value}),
+            unquoted_char
+        );
     }
     else if (quote) {
-        const quoted_char = stream.intercept(["whitespace", "newline"], () => {
-            const quoted_char = stream.syntax({char: "\\S"}, () => stream.get("char"));
-            stream.expect("quote");
-            return quoted_char;
-        }); 
-        node = new AstChar({value: quoted_char ? quoted_char.value : ""});
+        node = stream.intercept(["whitespace", "newline"], () => {
+            const quoted_char = stream.syntax({char: '[^\\s"]'}, () => stream.get("char"));
+            const closing_quote = stream.expect("quote");
+
+            return set_location(
+                new AstChar({value: quoted_char ? quoted_char.value : ""}),
+                quote,
+                closing_quote
+            );
+        });
     }
     else {
-        // @ts-ignore
-        node = new AstIdentifier({value: identifier.value});
+        node = set_location(
+            // @ts-ignore
+            new AstIdentifier({value: identifier.value}), identifier
+        );
     }
 
     return node
+}
+
+
+export function parse_turing_machine(stream: TokenStream) {
+    const target = delegate("identifier", stream) as AstIdentifier;
+    const body = delegate("turing:root", stream) as AstRoot;
+
+    const node = new AstTuringMachine({target, body})
+    return set_location(node, target, body);
+}
+
+export function parse_turing_transition(stream: TokenStream) {
+    stream = stream.syntax({arrow: "->"});
+
+    const start = delegate("state", stream) as AstIdentifier;
+    stream.intercept(["whitespace"]).expect("whitespace");
+    const condition = delegate("turing:chars", stream) as AstTuringCharList;
+    stream.expect("arrow");
+    const end = delegate("state", stream) as AstIdentifier;
+    const write = delegate("turing:chars", stream) as AstTuringCharList;
+    const shift = delegate("turing:shift", stream) as AstTuringShiftChar | AstTuringShiftCharList;
+
+    return set_location(
+        new AstTuringTransition({start, condition, end, write, shift}),
+        start,
+        shift
+    );
+}
+
+
+export function parse_turing_shift_char(stream: TokenStream) {
+    return stream.syntax({shift_char: Patterns.shift_char}, () => {
+        const token = stream.expect("shift_char");
+        const value = token.value as TuringShiftChar;
+        return set_location(new AstTuringShiftChar({value}), token)
+    });
+}
+
+export function parse_turing_named_shift_char(stream: TokenStream) {
+    return stream.syntax({colon: Patterns.colon}, () => {
+        const name = delegate("identifier", stream) as AstIdentifier;
+        stream.expect("colon");
+        const char = delegate("turing:shift:char", stream) as AstTuringShiftChar;
+
+        return new AstTuringNamedShiftChar({tape: name, value: char.value});
+    });
+}
+
+
+export function parse_named_char_condition(stream: TokenStream) {
+    return stream.syntax({colon: Patterns.colon}, () => {
+        const tape = delegate("identifier", stream) as AstIdentifier;
+        stream.expect("colon");
+        const char = delegate("turing:char", stream);
+
+        if (!(char instanceof AstChar)) throw new InvalidSyntax(
+            `Invalid named char value. Only literal chars allowed.`
+        );
+
+        return new AstTuringNamedChar({tape, char});
+    });
+}
+
+export function parse_turing_special_char(stream: TokenStream) {
+    const patterns = {caret: "\\^", dollar_sign: "\\$"};
+    return stream.syntax(patterns, () => {
+        const [caret, dollar_sign] = stream.expect_multiple("caret", "dollar_sign");
+
+        if (caret) {
+            return set_location(new AstStartLocationChar({value: "^"}), caret);
+        }
+        return set_location(new AstEndLocationChar({value: "$"}), dollar_sign as Token);
+    });
+}
+
+export function parse_turing_chars(stream: TokenStream): AstTuringCharList {
+    return stream.syntax({opening_square_bracket: Patterns.opening_square_bracket}, () => {
+        const {result} = stream.checkpoint(() => stream.get("opening_square_bracket"));
+        if (result) {
+            return delegate("turing:chars:list", stream) as AstTuringCharList;
+        }
+
+        const char = delegate("turing:chars:single", stream);
+
+        if (!(char instanceof AstChar)) throw new InvalidSyntax(
+            `Invalid char value.`
+        );
+
+        return set_location(new AstTuringCharList({values: [char]}), char);
+    });
 }

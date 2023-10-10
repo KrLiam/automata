@@ -153,6 +153,10 @@ export class TokenStream {
     set pos(value) { this.context.pos = value; }
     set index(value) { this.context.index = value; }
 
+    get location() {
+        return new SourceLocation(this.pos);
+    }
+
     bakeRegex() {
         const patterns: string[] = [];
         for (const [key, value] of Object.entries(this.syntax_rules)) {
