@@ -1,19 +1,38 @@
+export function count_ocurrences(str: string, char: string) {
+    let result = 0;
+    for (let i = 0; i < str.length; i++) {
+        if (str.charAt(i) === char) result++;
+    }
+    return result;
+}
+
 export class SourceLocation {
     pos: number
+    lineno: number
+    colno: number
     
-    constructor(pos: number) {
+    constructor(pos: number, lineno: number, colno: number) {
         this.pos = pos;
+        this.lineno = lineno;
+        this.colno = colno;
 
         Object.freeze(this);
     }
 
+    static from(location: SourceLocation) {
+        return new SourceLocation(location.pos, location.lineno, location.colno);
+    }
+
     skipOver(value: string) {
+        const line_start = value.lastIndexOf('\n');
         return new SourceLocation(
-            this.pos + value.length
+            this.pos + value.length,
+            this.lineno + count_ocurrences(value, '\n'),
+            line_start === -1 ? this.colno + value.length : value.length - line_start
         );
     }
 
-    static initial: SourceLocation = new SourceLocation(0);
+    static initial: SourceLocation = new SourceLocation(0, 1, 1);
 }
 
 interface SupportsLocation {
@@ -55,7 +74,7 @@ export class UnexpectedToken extends InvalidSyntax {
 
     constructor(token: Token, expectedPatterns: string[]) {
         const patterns = expectedPatterns.join(", ");
-        super(`Expected ${patterns} but got value '${token.value}'`);
+        super(`Expected ${patterns} but got value '${token.value}' (${token.type})`);
         
         this.token = token;
         this.expectedPatterns = expectedPatterns;
@@ -109,7 +128,7 @@ export class StreamContext {
         public source: string,
         public generator: Generator<Token, undefined, RegExp>,
         public done: boolean = false,
-        public pos: number = 0,
+        public location: SourceLocation = SourceLocation.initial,
         public index: number = -1,
         public tokens: Token[] = []
     ) {}
@@ -146,16 +165,14 @@ export class TokenStream {
     get source() { return this.context.source; }
     get generator() { return this.context.generator; }
     get done() { return this.context.done; }
-    get pos() { return this.context.pos; }
-    get index() { return this.context.index; }
-    get tokens() { return this.context.tokens; }
     set done(value) { this.context.done = value; }
-    set pos(value) { this.context.pos = value; }
+    get location() { return this.context.location; }
+    set location(location: SourceLocation) { this.context.location = location; }
+    get pos() { return this.context.location.pos; }
+    get index() { return this.context.index; }
     set index(value) { this.context.index = value; }
+    get tokens() { return this.context.tokens; }
 
-    get location() {
-        return new SourceLocation(this.pos);
-    }
 
     bakeRegex() {
         const patterns: string[] = [];
@@ -172,10 +189,10 @@ export class TokenStream {
 
         if (this.tokens.length) {
             const token = this.tokens[this.tokens.length - 1];
-            this.pos = token.endLocation.pos;
+            this.location = token.endLocation;
         }
         else {
-            this.pos = 0;
+            this.location = SourceLocation.initial;
         }
     }
 
@@ -305,10 +322,10 @@ export class TokenStream {
     }
 
     emitToken(type: string, value: string = "") {
-        const location = new SourceLocation(this.pos);
+        const location = SourceLocation.from(this.location);
         const endLocation = location.skipOver(value);
 
-        this.pos = endLocation.pos;
+        this.location = endLocation;
 
         const token = new Token(type, value, location, endLocation);
         this.tokens.push(token);
