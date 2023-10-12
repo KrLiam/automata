@@ -1,8 +1,45 @@
+<script lang="ts" setup>
+import { ref, shallowRef } from 'vue'
+
+const MONACO_EDITOR_OPTIONS = {
+  automaticLayout: true,
+  formatOnType: true,
+  formatOnPaste: true,
+}
+
+const code = ref('')
+
+const expose = {
+  TokenStream,
+  get_default_parsers,
+  delegate,
+  FiniteAutomaton,
+  format_transition_table,
+  TuringMachine,
+  TuringTransitionMap,
+  Compiler,
+  Patterns,
+  AstRoot,
+  AstIdentifier,
+  get_class_hierarchy,
+  Evaluator,
+  Scope,
+  Visitor,
+  rule,
+  Rule,
+};
+for (let [key, value] of Object.entries(expose)) {
+  // @ts-ignore
+  window[key] = value;
+}
+</script>
+
 <script lang="ts">
 import { defineComponent } from 'vue';
-import EditorArea from './components/EditorArea.vue'
+// import EditorArea from './components/EditorArea.vue'
+import EditorSeparator from './components/EditorSeparator.vue'
 
-import {InvalidSyntax, TokenStream} from './lib/tokenstream';
+import {InvalidSyntax, TokenStream, SourceLocation} from './lib/tokenstream';
 import { get_default_parsers, delegate, Patterns } from './lib/parser';
 import { FiniteAutomaton, TuringMachine, format_transition_table, TuringTransitionMap} from './lib/automaton';
 import { Compiler } from './lib/compiler';
@@ -12,44 +49,34 @@ import {Scope, Evaluator, EvaluationError} from './lib/evaluator';
 
 export default defineComponent({
   components: {
-    EditorArea
+    // EditorArea
+    EditorSeparator
   },
   data() {return {
-    compiler: new Compiler()
+    compiler: new Compiler(),
+    editorWidth: "50%",
+    editorHeight: "100%",
+    timeout: null as number | null,
+    changeInterval: 500,
   }},
-  setup() {
-    const expose = {
-      TokenStream,
-      get_default_parsers,
-      delegate,
-      FiniteAutomaton,
-      format_transition_table,
-      TuringMachine,
-      TuringTransitionMap,
-      Compiler,
-      Patterns,
-      AstRoot,
-      AstIdentifier,
-      get_class_hierarchy,
-      Evaluator,
-      Scope,
-      Visitor,
-      rule,
-      Rule,
-    };
-    for (let [key, value] of Object.entries(expose)) {
-      // @ts-ignore
-      window[key] = value;
-    }
-  },
   methods: {
-    async sourceChanged(source: string) {
+    async editorChange(source: string) {
+      if (this.timeout) clearInterval(this.timeout);
+      this.timeout = setTimeout(() => {
+        this.timeout = null;
+        this.compile(source);
+      }, this.changeInterval);
+    },
+
+    async compile(source: string) {
       const element = this.$refs.output as HTMLDivElement;
 
       const start = Date.now();
 
       try {
         const {ast, tokens, scope} = this.compiler.compile(source);
+        console.log(`Took ${Date.now() - start}ms to compile.`);
+
         const text = JSON.stringify(ast.toObject(), null, 4);
   
         element.innerText = text;
@@ -61,13 +88,20 @@ export default defineComponent({
         // @ts-ignore
         window.$scope = scope;
 
-        console.log(`Took ${Date.now() - start}ms to compile.`);
       } catch (err) {
-        if (err instanceof InvalidSyntax) {
-          element.innerText = err.message
-        }
-        else if (err instanceof EvaluationError) {
-          console.log(`Error: ${err.message}`);
+        if (err instanceof InvalidSyntax || err instanceof EvaluationError) {
+          let msg = `${err.message}`;
+          if (!err.location.match(SourceLocation.invalid)) {
+            const location = err.location;
+            msg += ` (line ${location.lineno}, column ${location.colno})\n\n`
+
+            const lines = source.split("\n");
+            const line = lines[location.lineno - 1];
+
+            msg += line + "\n";
+          }
+
+          element.innerText = msg
         }
         else throw err;
       }
@@ -79,10 +113,16 @@ export default defineComponent({
 
 <template>
   <main>
-    <EditorArea
-      @sourceChanged="sourceChanged"
-      :width="'30em'"
-    ></EditorArea>
+    <vue-monaco-editor
+      v-model:value="code"
+      theme="vs-dark"
+      :options="MONACO_EDITOR_OPTIONS"
+      :class="['editor']"
+      :width="editorWidth"
+      :height="editorHeight"
+      @change="editorChange"
+    />
+    <EditorSeparator/>
     <div class="output" ref="output"></div>
   </main>
 </template>
@@ -94,7 +134,12 @@ export default defineComponent({
   --light-gray: #e9e9f5;
 
   --black: #181818;
-  --text-dark: rgba(235, 235, 235, 0.64);
+  --text: rgba(235, 235, 235, 0.64);
+
+  --error: #f48771;
+  --background-lighter: rgba(127, 127, 127, 0.1);
+  --background: rgba(255, 255, 255, 0.04);
+  --separator-background: #252526;
 }
 
 body {
@@ -109,8 +154,13 @@ main,
 
   width: 100%;
   max-width: 100%;
-  height: 100%;
+  height: 100vh;
   max-height: 100%;
+}
+
+.editor {
+  font-family: "Droid Sans Mono", "monospace";
+  color: var(--light-gray);
 }
 
 main {
@@ -126,6 +176,7 @@ main .output {
 
 
 .output {
+  font-family: "Droid Sans Mono", "monospace";
   max-height: 100vh;
   height: 100%;
   padding: 1em;
@@ -133,7 +184,7 @@ main .output {
   white-space: pre;
   overflow: scroll;
 
-  color: var(--text-dark);
-  background: var(--black);
+  color: var(--text);
+  background: var(--background);
 }
 </style>

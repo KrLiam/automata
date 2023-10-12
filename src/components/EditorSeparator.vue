@@ -21,7 +21,7 @@ export default defineComponent({
   flex-grow: 0;
   width: 1em;
   height: 100%;
-  background: var(--white);
+  background: var(--separator-background);
   cursor:ew-resize;
   box-shadow: -0.25rem 0 1rem 0 rgba(0, 0, 0, 0.1);
 }
