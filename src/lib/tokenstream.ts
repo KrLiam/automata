@@ -32,7 +32,16 @@ export class SourceLocation {
         );
     }
 
+    match(location: SourceLocation) {
+        return (
+            this.pos === location.pos &&
+            this.lineno === location.lineno &&
+            this.colno === location.colno
+        );
+    }
+
     static initial: SourceLocation = new SourceLocation(0, 1, 1);
+    static invalid: SourceLocation = new SourceLocation(-1, -1, -1);
 }
 
 interface SupportsLocation {
@@ -64,8 +73,8 @@ export function set_location<T extends SupportsLocation>(
 }
 
 export class InvalidSyntax extends Error {
-    location: SourceLocation = SourceLocation.initial;
-    endLocation: SourceLocation = SourceLocation.initial;
+    location: SourceLocation = SourceLocation.invalid;
+    endLocation: SourceLocation = SourceLocation.invalid;
 }
 
 export class UnexpectedToken extends InvalidSyntax {
@@ -74,7 +83,7 @@ export class UnexpectedToken extends InvalidSyntax {
 
     constructor(token: Token, expectedPatterns: string[]) {
         const patterns = expectedPatterns.join(", ");
-        super(`Expected ${patterns} but got value '${token.value}' (${token.type})`);
+        super(`Expected ${patterns} but got value '${token.value}'`);
         
         this.token = token;
         this.expectedPatterns = expectedPatterns;
@@ -446,7 +455,8 @@ export class TokenStream {
             return result;
         }
         const token = this.peek();
-        throw token ? new UnexpectedToken(token, patterns) : new UnexpectedEOF();
+        throw token ? set_location(new UnexpectedToken(token, patterns), token) :
+                      set_location(new UnexpectedEOF(), this.tokens[this.tokens.length - 1]);
     }
     
     expect(pattern: string | null = null): Token {
@@ -454,7 +464,8 @@ export class TokenStream {
             return result;
         }
         const token = this.peek();
-        throw token ? new UnexpectedToken(token, [pattern ? pattern : "any"]) : new UnexpectedEOF();
+        throw token ? set_location(new UnexpectedToken(token, [pattern ? pattern : "any"]), token) :
+                      set_location(new UnexpectedEOF(), this.tokens[this.tokens.length - 1]);
     }
 
     expect_any(...patterns: string[]): Token {

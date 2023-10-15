@@ -1,8 +1,12 @@
 import { AstChar, AstFinalState, AstFiniteAutomaton, AstIdentifier, AstInitialState, AstNode, AstRoot, AstTransition } from "./ast";
-import { FiniteAutomaton, type TransitionTuple } from "./automaton";
+import { FiniteAutomaton, type FiniteTransition } from "./automaton";
+import { SourceLocation, set_location } from "./tokenstream";
 import { Visitor, rule } from "./visitor";
 
-export class EvaluationError extends Error {}
+export class EvaluationError extends Error {
+    location: SourceLocation = SourceLocation.invalid;
+    endLocation: SourceLocation = SourceLocation.invalid;
+}
 
 export class RedefinitionError extends EvaluationError {
     binding: Binding;
@@ -120,16 +124,27 @@ export class Evaluator extends Visitor<AstNode, Scope, void> {
 
         this.invoke(node.body, child_scope);
 
-        if (!initial.defined) throw new EvaluationError(
-            `Finite automaton '${name}' is missing initial state.`
-        )
+        if (!initial.defined) throw set_location(
+            new EvaluationError(
+                `Finite automaton '${name}' is missing initial state.`
+            ),
+            node.name
+        );
 
         const automaton = new FiniteAutomaton(
             transitions.unwrap(), initial.unwrap(), final.unwrap()
         );
 
         child_scope.result = automaton;
-        binding.define(child_scope);
+        try {
+            binding.define(child_scope);
+        }
+        catch (err) {
+            if (err instanceof RedefinitionError) throw set_location(
+                err, node.name
+            );
+            else throw err
+        }
     }
 
     @rule(AstInitialState)
@@ -156,7 +171,7 @@ export class Evaluator extends Visitor<AstNode, Scope, void> {
         const binding = scope.declare("$transitions");
         if (!binding.defined) binding.define([]);
 
-        const transitions = binding.unwrap() as TransitionTuple[];
+        const transitions = binding.unwrap() as FiniteTransition[];
 
         const condition = node.condition;
 
@@ -167,8 +182,11 @@ export class Evaluator extends Visitor<AstNode, Scope, void> {
 
             transitions.push([start, symbol, end]);
         }
-        else if (condition instanceof AstIdentifier) throw new EvaluationError(
-            `Name references in transition conditions are not supported yet.`
+        else if (condition instanceof AstIdentifier) throw set_location(
+            new EvaluationError(
+                `Name references in transition conditions are not supported yet.`
+            ),
+            condition
         );
     }
 }

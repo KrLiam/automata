@@ -26,8 +26,7 @@ export enum Patterns {
 
     word = "\\w+",
     identifier = "[a-zA-Z_][a-zA-Z0-9_]*",
-    symbol = ".",
-    any = "."
+    symbol = "\\S",
 }
 
 export function pattern(name: keyof typeof Patterns): TokenPattern {
@@ -212,13 +211,14 @@ export class ChooseParser {
                 
                 stream.next();
                 const node = parser.parse(stream);
-                return set_location(node, token)
+                return set_location(node, token.location)
             }
         }
         
         const patternKeys = Object.keys(this.patterns);
         const node = stream.peek();
-        throw node ? new UnexpectedToken(node, patternKeys) : new UnexpectedEOF();
+        throw node ? set_location(new UnexpectedToken(node, patternKeys), node) :
+                     set_location(new UnexpectedEOF(), stream.tokens[stream.tokens.length - 1]);
     }
 }
 
@@ -556,8 +556,11 @@ export function parse_named_char_condition(stream: TokenStream) {
         stream.expect("colon");
         const char = delegate("turing:char", stream);
 
-        if (!(char instanceof AstChar)) throw new InvalidSyntax(
-            `Invalid named char value. Only literal chars allowed.`
+        if (!(char instanceof AstChar)) throw set_location(
+            new InvalidSyntax(
+                `Invalid named char value. Only literal chars allowed.`
+            ),
+            char
         );
 
         return new AstTuringNamedChar({tape, char});
@@ -585,8 +588,8 @@ export function parse_turing_chars(stream: TokenStream): AstTuringCharList {
 
         const char = delegate("turing:chars:single", stream);
 
-        if (!(char instanceof AstChar)) throw new InvalidSyntax(
-            `Invalid char value.`
+        if (!(char instanceof AstChar)) throw set_location(
+            new InvalidSyntax(`Invalid char value.`), char
         );
 
         return set_location(new AstTuringCharList({values: [char]}), char);

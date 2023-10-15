@@ -11,6 +11,7 @@ const code = ref('')
 
 const expose = {
   TokenStream,
+  SourceLocation,
   get_default_parsers,
   delegate,
   FiniteAutomaton,
@@ -27,6 +28,7 @@ const expose = {
   Visitor,
   rule,
   Rule,
+  underline_code,
 };
 for (let [key, value] of Object.entries(expose)) {
   // @ts-ignore
@@ -42,7 +44,7 @@ import EditorSeparator from './components/EditorSeparator.vue'
 import {InvalidSyntax, TokenStream, SourceLocation} from './lib/tokenstream';
 import { get_default_parsers, delegate, Patterns } from './lib/parser';
 import { FiniteAutomaton, TuringMachine, format_transition_table, TuringTransitionMap} from './lib/automaton';
-import { Compiler } from './lib/compiler';
+import { Compiler, CompilationError, underline_code } from './lib/compiler';
 import {AstRoot, AstIdentifier} from './lib/ast'
 import {get_class_hierarchy, Visitor, Rule, rule} from './lib/visitor';
 import {Scope, Evaluator, EvaluationError} from './lib/evaluator';
@@ -89,19 +91,8 @@ export default defineComponent({
         window.$scope = scope;
 
       } catch (err) {
-        if (err instanceof InvalidSyntax || err instanceof EvaluationError) {
-          let msg = `${err.message}`;
-          if (!err.location.match(SourceLocation.invalid)) {
-            const location = err.location;
-            msg += ` (line ${location.lineno}, column ${location.colno})\n\n`
-
-            const lines = source.split("\n");
-            const line = lines[location.lineno - 1];
-
-            msg += line + "\n";
-          }
-
-          element.innerText = msg
+        if (err instanceof CompilationError) {
+          element.innerText = err.message;
         }
         else throw err;
       }
@@ -170,21 +161,21 @@ main {
   justify-content: space-between;
   align-items: center;
 }
-main .output {
-  flex-grow: 1;
-}
-
 
 .output {
+  flex-grow: 1;
+
   font-family: "Droid Sans Mono", "monospace";
   max-height: 100vh;
   height: 100%;
   padding: 1em;
 
-  white-space: pre;
-  overflow: scroll;
+  white-space: pre-wrap;
 
-  color: var(--text);
+  color: var(--error);
   background: var(--background);
+}
+.output.error {
+  color: var(--error);
 }
 </style>
