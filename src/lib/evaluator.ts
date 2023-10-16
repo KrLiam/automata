@@ -60,16 +60,15 @@ export class Binding {
       if (!this.defined) throw new PreDefinitionUsageError(this);
       return this.value;
     }
-  }
-  
+}
+
+
 export class Scope {
     parent: Scope | null;
-    result: any;
     bindings: {[name: string]: Binding};
 
-    constructor(parent: Scope | null = null, result: any = null) {
+    constructor(parent: Scope | null = null) {
         this.parent = parent;
-        this.result = result;
         this.bindings = {};
     }
 
@@ -95,8 +94,24 @@ export class Scope {
             throw new UndeclaredNameError(this, name);
         }
 
-        const value = binding.unwrap();
-        return value instanceof Scope ? value.result : value;
+        return binding.unwrap();
+    }
+}
+
+
+type ObjectMethodMap = {
+    [name: string]: (...a: any[]) => LangObject | undefined
+};
+
+class LangObject {
+    value: any;
+    scope: Scope | null;
+    methods: ObjectMethodMap;
+
+    constructor(value: any, scope: Scope | null = null, methods: ObjectMethodMap | null = null) {
+        this.value = value;
+        this.scope = scope;
+        this.methods = methods == null ? {} : methods;
     }
 }
 
@@ -134,10 +149,10 @@ export class Evaluator extends Visitor<AstNode, Scope, void> {
         const automaton = new FiniteAutomaton(
             transitions.unwrap(), initial.unwrap(), final.unwrap()
         );
-
-        child_scope.result = automaton;
+        const obj = new LangObject(automaton, child_scope);
+        
         try {
-            binding.define(child_scope);
+            binding.define(obj);
         }
         catch (err) {
             if (err instanceof RedefinitionError) throw set_location(
