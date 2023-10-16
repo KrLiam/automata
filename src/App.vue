@@ -29,6 +29,8 @@ const expose = {
   rule,
   Rule,
   underline_code,
+  XMLParser,
+  convert_turing_xml,
 };
 for (let [key, value] of Object.entries(expose)) {
   // @ts-ignore
@@ -48,6 +50,8 @@ import { Compiler, CompilationError, underline_code } from './lib/compiler';
 import {AstRoot, AstIdentifier} from './lib/ast'
 import {get_class_hierarchy, Visitor, Rule, rule} from './lib/visitor';
 import {Scope, Evaluator, EvaluationError} from './lib/evaluator';
+import {convert_turing_xml} from './lib/export';
+import { XMLParser } from "fast-xml-parser";
 
 export default defineComponent({
   components: {
