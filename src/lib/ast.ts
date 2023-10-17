@@ -163,17 +163,22 @@ export class AstFiniteAutomaton extends AstNode {
 }
 
 
+export class AstTapeList extends AstList<AstIdentifier> {}
+
 export type AstTuringMachineArgs = AstNodeArgs & {
     target: AstIdentifier;
+    tapes: AstTapeList;
     body: AstRoot;
 }
 export class AstTuringMachine extends AstNode {
     target: AstIdentifier;
+    tapes: AstTapeList;
     body: AstRoot;
 
-    constructor({target, body, ...args}: AstTuringMachineArgs) {
+    constructor({target, tapes, body, ...args}: AstTuringMachineArgs) {
         super(args);
         this.target = target;
+        this.tapes = tapes;
         this.body = body;
     };
 }

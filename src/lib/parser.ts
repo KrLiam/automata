@@ -1,7 +1,7 @@
 
 import { InvalidSyntax, UnexpectedToken, type TokenStream, UnexpectedEOF, type TokenPattern, SourceLocation } from './tokenstream';
 
-import {AstFiniteAutomaton, AstChar, AstFinalState, AstIdentifier, AstInitialState, AstNode, AstRoot, AstStateList, AstTransition, AstList, AstTuringMachine, AstTuringCharList, AstTuringShiftCharList, AstTuringTransition, AstTuringShiftChar, AstTuringNamedChar, AstTuringNamedShiftChar, AstStartLocationChar, AstEndLocationChar} from './ast';
+import {AstFiniteAutomaton, AstChar, AstFinalState, AstIdentifier, AstInitialState, AstNode, AstRoot, AstStateList, AstTransition, AstList, AstTuringMachine, AstTuringCharList, AstTuringShiftCharList, AstTuringTransition, AstTuringShiftChar, AstTuringNamedChar, AstTuringNamedShiftChar, AstStartLocationChar, AstEndLocationChar, AstTapeList} from './ast';
 import { Token, set_location } from './tokenstream';
 import {ParseError} from './error';
 import type { TuringShiftChar } from './automaton';
@@ -12,6 +12,7 @@ export enum Patterns {
     initial = "initial\\b",
     final = "final\\b",
     turing = "turing\\b",
+    tapes = "tapes\\b",
 
     opening_bracket = "\\{",
     closing_bracket = "\\}",
@@ -59,6 +60,13 @@ export function get_default_parsers(): {[key: string]: Parser} {
         "transition": new CallParser(parse_finite_transition),
 
         "turing": new CallParser(parse_turing_machine),
+        "turing:tape": delegate("identifier"),
+        "turing:tapes" : new ListParser(
+            delegate("turing:tape"),
+            AstTapeList,
+            pattern("opening_square_bracket"),
+            pattern("closing_square_bracket")
+        ),
         "turing:root": new RootParser(
             delegate("turing:statement"),
             pattern("opening_bracket"),
@@ -506,9 +514,11 @@ export function parse_char_condition(stream: TokenStream): AstIdentifier | AstCh
 
 export function parse_turing_machine(stream: TokenStream) {
     const target = delegate("identifier", stream) as AstIdentifier;
+    stream.expect("tapes");
+    const tapes = delegate("turing:tapes", stream) as AstList<AstIdentifier>;
     const body = delegate("turing:root", stream) as AstRoot;
 
-    const node = new AstTuringMachine({target, body})
+    const node = new AstTuringMachine({target, tapes, body})
     return set_location(node, target, body);
 }
 
@@ -545,7 +555,9 @@ export function parse_turing_named_shift_char(stream: TokenStream) {
         stream.expect("colon");
         const char = delegate("turing:shift:char", stream) as AstTuringShiftChar;
 
-        return new AstTuringNamedShiftChar({tape: name, value: char.value});
+        return set_location(
+            new AstTuringNamedShiftChar({tape: name, value: char.value}), name, char
+        );
     });
 }
 
@@ -563,7 +575,9 @@ export function parse_named_char_condition(stream: TokenStream) {
             char
         );
 
-        return new AstTuringNamedChar({tape, char});
+        return set_location(
+            new AstTuringNamedChar({tape, char}), tape, char
+        );
     });
 }
 

@@ -559,8 +559,6 @@ export class TuringTransitionMap {
 
             const end_value = symbol_map[key]
             const value = {state, write_chars, shift};
-
-            console.log(state, key, end_value, value);
     
             if (end_value instanceof Array) {
                 if (this.has_value(end_value, value)) continue;

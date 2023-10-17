@@ -1,5 +1,5 @@
-import { AstChar, AstFinalState, AstFiniteAutomaton, AstIdentifier, AstInitialState, AstNode, AstRoot, AstTransition } from "./ast";
-import { FiniteAutomaton, type FiniteTransition } from "./automaton";
+import { AstChar, AstFinalState, AstFiniteAutomaton, AstIdentifier, AstInitialState, AstList, AstNode, AstRoot, AstTransition, AstTuringCharList, AstTuringMachine, AstTuringNamedChar, AstTuringNamedShiftChar, AstTuringShiftChar, AstTuringShiftCharList, AstTuringTransition } from "./ast";
+import { FiniteAutomaton, TuringMachine, type FiniteTransition, type TuringTransition, type TuringShiftChar } from "./automaton";
 import { SourceLocation, set_location } from "./tokenstream";
 import { Visitor, rule } from "./visitor";
 
@@ -95,6 +95,18 @@ export class Scope {
         }
 
         return binding.unwrap();
+    }
+
+    is_declared(name: string): boolean {
+        const binding = this.bindings[name];
+        return binding ? true : false;
+    }
+
+    is_defined(name: string): boolean {
+        const binding = this.bindings[name];
+        if (!binding) return false;
+        
+        return binding.defined;
     }
 }
 
@@ -203,5 +215,116 @@ export class Evaluator extends Visitor<AstNode, Scope, void> {
             ),
             condition
         );
+    }
+
+    @rule(AstTuringMachine)
+    turing_machine(node: AstTuringMachine, scope: Scope) {
+        const name = node.target.value;
+        const tapes = node.tapes.values.map(node => node.value);
+        const binding = scope.declare(name);
+
+        const child_scope = new Scope(scope);
+        child_scope.declare("$tapes", tapes);
+        const initial = child_scope.declare("$initial");
+        const final = child_scope.declare("$final", []);
+        const transitions = child_scope.declare("$transitions", []);
+
+        this.invoke(node.body, child_scope);
+
+        if (!initial.defined) throw set_location(
+            new EvaluationError(
+                `Turing Machine '${name}' is missing initial state.`
+            ),
+            node.target
+        );
+
+        const turing = new TuringMachine(
+            transitions.unwrap(), initial.unwrap(), final.unwrap(), tapes
+        );
+        const obj = new LangObject(turing, child_scope);
+        
+        try {
+            binding.define(obj);
+        }
+        catch (err) {
+            if (err instanceof RedefinitionError) throw set_location(
+                err, node.target
+            );
+            else throw err
+        }
+    }
+
+    turing_list(node: AstList<AstNode>, tapes: string[], output: string[]) {
+        let i = 0;
+        let positional = true;
+
+        for (const char of node.values) {
+            if (char instanceof AstTuringNamedChar || char instanceof AstTuringNamedShiftChar) {
+                const tape = char.tape.value;
+                if (!tapes.includes(tape)) throw set_location(
+                    new EvaluationError(`Tape '${tape}' is not specified in the tape list.`),
+                    char.tape,
+                )
+                output[tapes.indexOf(tape)] = char.value; // FIXME support start and end chars
+                positional = false;
+            }
+            else if (char instanceof AstChar || char instanceof AstTuringShiftChar) {
+                if (!positional) throw set_location(
+                    new EvaluationError("Positional char specified after named char in char list."),
+                    char
+                );
+                output[i] = char.value;
+                i++;
+            }
+        }
+    }
+
+    @rule(AstTuringTransition)
+    turing_transition(node: AstTuringTransition, scope: Scope) {
+        const binding = scope.declare("$transitions");
+        if (!binding.defined) binding.define([]);
+        const transitions = binding.unwrap() as TuringTransition[];
+
+        if (!scope.is_defined("$tapes")) throw set_location(
+            new EvaluationError(
+                "Invalid turing transition outside of turing machine block (missing tape list reference)."
+            ),
+            node
+        );
+        const tapes = scope.value("$tapes") as string[];
+
+        let read: string[] = tapes.map(() => "");
+        let shift: TuringShiftChar[] = tapes.map(() => "-");
+        
+        const condition = node.condition;
+        if (condition instanceof AstTuringCharList) {
+            this.turing_list(condition, tapes, read);
+        }
+        else if (condition instanceof AstChar) {
+            read = read.map(() => condition.value);
+        }
+        else if (condition instanceof AstIdentifier) throw set_location(
+            new EvaluationError(
+                `Name references in transition conditions are not supported yet.`
+            ),
+            condition
+        );
+
+        let write: string[] = Array.from(read);
+        
+        const node_write = node.write;
+        if (node_write instanceof AstTuringCharList) {
+            this.turing_list(node_write, tapes, write);
+        }
+
+        const node_shift = node.shift;
+        if (node_shift instanceof AstTuringShiftCharList) {
+            this.turing_list(node_shift, tapes, shift);
+        }
+        else {
+            shift = shift.map(() => node_shift.value);
+        }
+
+        transitions.push([node.start.value, read, node.end.value, write, shift]);
     }
 }

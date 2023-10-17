@@ -175,6 +175,7 @@ main {
   padding: 1em;
 
   white-space: pre-wrap;
+  overflow: scroll;
 
   color: var(--error);
   background: var(--background);
