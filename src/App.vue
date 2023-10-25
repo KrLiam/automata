@@ -42,6 +42,7 @@ for (let [key, value] of Object.entries(expose)) {
 import { defineComponent } from 'vue';
 // import EditorArea from './components/EditorArea.vue'
 import EditorSeparator from './components/EditorSeparator.vue'
+import MainView from './components/MainView.vue'
 
 import {InvalidSyntax, TokenStream, SourceLocation} from './lib/tokenstream';
 import { get_default_parsers, delegate, Patterns } from './lib/parser';
@@ -56,7 +57,8 @@ import { XMLParser } from "fast-xml-parser";
 export default defineComponent({
   components: {
     // EditorArea
-    EditorSeparator
+    EditorSeparator,
+    MainView,
   },
   data() {return {
     compiler: new Compiler(),
@@ -64,6 +66,9 @@ export default defineComponent({
     editorHeight: "100%",
     timeout: null as number | null,
     changeInterval: 500,
+
+    output: "",
+    objects: {},
   }},
   methods: {
     async editorChange(source: string) {
@@ -75,8 +80,6 @@ export default defineComponent({
     },
 
     async compile(source: string) {
-      const element = this.$refs.output as HTMLDivElement;
-
       const start = Date.now();
 
       try {
@@ -85,7 +88,11 @@ export default defineComponent({
 
         const text = JSON.stringify(ast.toObject(), null, 4);
   
-        element.innerText = text;
+        this.output = text;
+        this.objects = {};
+        for (const [name, value] of scope) {
+          this.objects[name] = value;
+        }
 
         // @ts-ignore
         window.$ast = ast;
@@ -96,7 +103,7 @@ export default defineComponent({
 
       } catch (err) {
         if (err instanceof CompilationError) {
-          element.innerText = err.message;
+          this.output = err.message;
         }
         else throw err;
       }
@@ -118,7 +125,10 @@ export default defineComponent({
       @change="editorChange"
     />
     <EditorSeparator/>
-    <div class="output" ref="output"></div>
+    <MainView
+      :output="output"
+      :objects="objects"
+    ></MainView>
   </main>
 </template>
 
@@ -164,23 +174,5 @@ main {
   flex-direction: row;
   justify-content: space-between;
   align-items: center;
-}
-
-.output {
-  flex-grow: 1;
-
-  font-family: "Droid Sans Mono", "monospace";
-  max-height: 100vh;
-  height: 100%;
-  padding: 1em;
-
-  white-space: pre-wrap;
-  overflow: scroll;
-
-  color: var(--error);
-  background: var(--background);
-}
-.output.error {
-  color: var(--error);
 }
 </style>

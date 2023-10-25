@@ -108,6 +108,14 @@ export class Scope {
         
         return binding.defined;
     }
+
+    *[Symbol.iterator]() {
+        for (let [name, binding] of Object.entries(this.bindings)) {
+            if (binding.defined && !name.startsWith("$")) {
+                yield [name, binding.unwrap()];
+            }
+        }
+    }
 }
 
 
