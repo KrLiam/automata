@@ -453,7 +453,6 @@ export function parse_finite_transition(stream: TokenStream) {
     stream = stream.syntax({colon: ":", arrow: "->"});
 
     const start = delegate("state", stream) as AstIdentifier;
-    stream.expect("colon");
     const condition = delegate("char_condition", stream);
     stream.expect("arrow");
     const end = delegate("state", stream) as AstIdentifier;
