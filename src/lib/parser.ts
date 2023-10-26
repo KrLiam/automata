@@ -21,7 +21,8 @@ export enum Patterns {
     semicolon = ";",
     colon = ":",
     comma = ",",
-    comment = "//.+",
+    comment = "//.*",
+    multiline_comment = "/\\*[\\s\\S]*?\\*/",
 
     shift_char = ">|<|-",
 
@@ -296,7 +297,7 @@ export class RootParser {
         const start_location = p ? p.location : SourceLocation.initial;
 
         const patterns = {...this.patterns, comment: Patterns.comment};
-        const ignore = ["comment", "whitespace", "newline"];
+        const ignore = ["comment", "multiline_comment", "whitespace", "newline"];
         return stream.syntax(patterns, () => stream.ignore(ignore, () => {
             const children: AstNode[] = [];
             
