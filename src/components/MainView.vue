@@ -21,7 +21,8 @@
       </div>
       <div class="view"></div>
     </div>
-    <div class="output">
+    <div
+      :class="['output', outputStatus]">
       {{output}}
     </div>
   </div>
@@ -30,6 +31,7 @@
 <script lang="ts" setup>
 defineProps<{
   output: string,
+  outputStatus: string,
   objects: {[name: string]: LangObject}
 }>();
 </script>
@@ -47,7 +49,7 @@ export default defineComponent({
   }},
   watch: {
     objects(new_value) {
-      console.log("Console changed.", new_value);
+      // console.log("Console changed.", new_value);
     }
   },
   methods: {
@@ -89,16 +91,19 @@ export default defineComponent({
 }
 .output {
   padding: 1em;
-  height: 20em;
+  height: 15em;
   
   white-space: pre-wrap;
   overflow: scroll;
   
-  color: var(--error);
+  color: var(--white);
   background: var(--background);
 }
-.view.error {
+.output.error {
   color: var(--error);
+}
+.output.success {
+  color: var(--success);
 }
 
 .content .top {

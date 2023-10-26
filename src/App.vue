@@ -69,6 +69,7 @@ export default defineComponent({
       changeInterval: 500,
       code: source ? source : "",
       output: "",
+      outputStatus: "",
       objects: {},
     }
   },
@@ -89,13 +90,22 @@ export default defineComponent({
     async compile(source: string) {
       const start = Date.now();
 
+
+      console.log("compiling...")
+      this.output = "Compiling...";
+      this.outputStatus = "info";
+
       try {
         const {ast, tokens, scope} = this.compiler.compile(source);
-        console.log(`Took ${Date.now() - start}ms to compile.`);
+        const time_taken = Date.now() - start;
+
+        console.log(`Took ${time_taken}ms to compile.`);
 
         const text = JSON.stringify(ast.toObject(), null, 4);
   
-        this.output = text;
+        this.output = `Compilation finished successfuly in ${time_taken}ms!`;
+        this.outputStatus = "success";
+
         this.objects = {};
         for (const [name, value] of scope) {
           this.objects[name] = value;
@@ -111,6 +121,7 @@ export default defineComponent({
       } catch (err) {
         if (err instanceof CompilationError) {
           this.output = err.message;
+          this.outputStatus = "error";
         }
         else throw err;
       }
@@ -134,6 +145,7 @@ export default defineComponent({
     <EditorSeparator/>
     <MainView
       :output="output"
+      :outputStatus="outputStatus"
       :objects="objects"
     ></MainView>
   </main>
@@ -149,6 +161,7 @@ export default defineComponent({
   --text: rgba(235, 235, 235, 0.64);
 
   --error: #f48771;
+  --success: #64fa61;
   --background-lighter: rgba(127, 127, 127, 0.1);
   --background: rgba(255, 255, 255, 0.04);
   --separator-background: #252526;
