@@ -7,8 +7,6 @@ const MONACO_EDITOR_OPTIONS = {
   formatOnPaste: true,
 }
 
-const code = ref('')
-
 const expose = {
   TokenStream,
   SourceLocation,
@@ -36,6 +34,7 @@ for (let [key, value] of Object.entries(expose)) {
   // @ts-ignore
   window[key] = value;
 }
+
 </script>
 
 <script lang="ts">
@@ -60,16 +59,22 @@ export default defineComponent({
     EditorSeparator,
     MainView,
   },
-  data() {return {
-    compiler: new Compiler(),
-    editorWidth: "50%",
-    editorHeight: "100%",
-    timeout: null as number | null,
-    changeInterval: 500,
-
-    output: "",
-    objects: {},
-  }},
+  data() {
+    const source = localStorage.editorSource;
+    return {
+      compiler: new Compiler(),
+      editorWidth: "50%",
+      editorHeight: "100%",
+      timeout: null as number | null,
+      changeInterval: 500,
+      code: source ? source : "",
+      output: "",
+      objects: {},
+    }
+  },
+  mounted() {
+    setTimeout(() => this.compile(this.code), 1000);
+  },
   methods: {
     async editorChange(source: string) {
       if (this.timeout) clearInterval(this.timeout);
@@ -77,6 +82,8 @@ export default defineComponent({
         this.timeout = null;
         this.compile(source);
       }, this.changeInterval);
+
+      localStorage.editorSource = source;
     },
 
     async compile(source: string) {
