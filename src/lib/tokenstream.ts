@@ -330,7 +330,7 @@ export class TokenStream {
         return result;
     }
 
-    emitToken(type: string, value: string = "") {
+    emitToken(type: string, value: string = ""): Token {
         const location = SourceLocation.from(this.location);
         const endLocation = location.skipOver(value);
 
@@ -340,6 +340,8 @@ export class TokenStream {
         this.tokens.push(token);
 
         this.index = this.tokens.length - 1;
+
+        return token;
     }
 
     get current() {
@@ -360,8 +362,13 @@ export class TokenStream {
             }
         }
 
-        this.emitToken("eof");
-        yield this.current;
+        let eof = this.emitToken("eof");
+        while (true) {
+            yield eof;
+            if (!this.tokens.includes(eof)) {
+                eof = this.emitToken("eof");
+            }
+        }
     }
     
     [Symbol.iterator]() { return this; }
@@ -464,8 +471,14 @@ export class TokenStream {
             return result;
         }
         const token = this.peek();
-        throw token ? set_location(new UnexpectedToken(token, [pattern ? pattern : "any"]), token) :
-                      set_location(new UnexpectedEOF(), this.tokens[this.tokens.length - 1]);
+        if (token) {
+            throw set_location(new UnexpectedToken(token, [pattern ? pattern : "any"]), token);
+        }
+        else {
+            const lastToken = this.tokens[this.tokens.length - 1];
+            const location = lastToken ? lastToken.endLocation : SourceLocation.initial;
+            throw set_location(new UnexpectedEOF(), location, location);
+        }
     }
 
     expect_any(...patterns: string[]): Token {

@@ -293,6 +293,8 @@ export class RootParser {
     }
 
     parse(stream: TokenStream) {
+        stream = stream.intercept([this.closing_pattern]);
+
         const p = stream.peek();
         const start_location = p ? p.location : SourceLocation.initial;
 
@@ -306,16 +308,15 @@ export class RootParser {
             }
             let closing: Token | null = null;
             
-            const intercepted = stream.intercept([this.closing_pattern]);
     
-            let token = intercepted.peek();
+            let token = stream.peek();
             while (token) {
                 if (token.type.match(this.closing_pattern)) break;
                 
                 const statement = this.parser.parse(stream);
                 children.push(statement);
     
-                const [_, __, closing_token] = intercepted.intercept(["newline"]).expect_multiple(
+                const [_, __, closing_token] = stream.intercept(["newline"]).expect_multiple(
                     "newline", "semicolon", this.closing_pattern
                 );
                 if (closing_token) {
@@ -323,10 +324,10 @@ export class RootParser {
                     break;
                 }
     
-                token = intercepted.peek();
+                token = stream.peek();
             }
-    
-            if (!closing) closing = intercepted.expect(this.closing_pattern);
+
+            if (!closing) closing = stream.expect(this.closing_pattern);
     
             return set_location(new AstRoot({children}), start_location, closing);
         }));
