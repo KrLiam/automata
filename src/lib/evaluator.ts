@@ -119,11 +119,11 @@ export class Scope {
 }
 
 
-type ObjectMethodMap = {
+export type ObjectMethodMap = {
     [name: string]: (...a: any[]) => LangObject | undefined
 };
 
-class LangObject {
+export class LangObject {
     value: any;
     scope: Scope | null;
     methods: ObjectMethodMap;

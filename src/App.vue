@@ -108,6 +108,7 @@ export default defineComponent({
 
         this.objects = {};
         for (const [name, value] of scope) {
+          // @ts-ignore
           this.objects[name] = value;
         }
 
