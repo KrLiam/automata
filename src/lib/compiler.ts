@@ -100,7 +100,7 @@ export class CompilationError extends Error {
 }
 
 export class Compiler {
-    parsers: {[key: string]: Parser;};
+    parsers: {[key: string]: Parser<AstNode>;};
     evaluator: Evaluator;
 
     constructor() {
