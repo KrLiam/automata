@@ -51,6 +51,7 @@ import {AstRoot, AstIdentifier} from './lib/ast'
 import {get_class_hierarchy, Visitor, Rule, rule} from './lib/visitor';
 import {Scope, Evaluator, EvaluationError} from './lib/evaluator';
 import {convert_turing_xml} from './lib/export';
+import {example_code} from "./lib/example";
 import { XMLParser } from "fast-xml-parser";
 
 export default defineComponent({
@@ -67,7 +68,7 @@ export default defineComponent({
       editorHeight: "100%",
       timeout: null as number | null,
       changeInterval: 500,
-      code: source ? source : "",
+      code: source ? source : example_code,
       output: "",
       outputStatus: "",
       objects: {},
