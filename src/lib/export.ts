@@ -37,12 +37,16 @@ export function convert_turing_xml(turing: TuringMachine) {
     for (const [start, read, end, write, shift] of turing.transition_map.transitions()) {
         const converted_read = read.map((char, i) => ({
             "@_tape": tape_to_id[turing.tapes[i]],
-            "#text": char ? char : "~",
+            "#text": char === " " ? "" :
+                     char === "" ? "~" :
+                     char,
         }));
 
         const converted_write = write.map((char, i) => ({
             "@_tape": tape_to_id[turing.tapes[i]],
-            "#text": char ? char : "~",
+            "#text": char === " " ? "" :
+                     char === "" ? "~" :
+                     char,
         }));
 
         const converted_shift = shift.map((char, i) => ({

@@ -36,7 +36,7 @@ export function pattern(name: keyof typeof Patterns): TokenPattern {
 }
 
 
-export function get_default_parsers(): {[key: string]: Parser} {
+export function get_default_parsers(): {[key: string]: Parser<AstNode>} {
     return {
         "identifier": new CallParser(parse_identifier),
         "state": delegate("identifier"),
@@ -98,10 +98,10 @@ export function get_default_parsers(): {[key: string]: Parser} {
             delegate("char_condition"),
         ]),
         "turing:char:special": new CallParser(parse_turing_special_char),
-        "turing:shift": new ChooseParser(
-            option(pattern("opening_square_bracket"), delegate("turing:shift:list")),
-            option(pattern("shift_char"), delegate("turing:shift:single")),
-        ),
+        "turing:shift": new AlternativeParser([
+            delegate("turing:shift:char"),
+            delegate("turing:shift:list"),
+        ]),
         "turing:shift:list": new ListParser(
             delegate("turing:shift:single"),
             AstTuringShiftCharList,
@@ -117,16 +117,16 @@ export function get_default_parsers(): {[key: string]: Parser} {
     }
 }
 
-export interface Parser {
-    parse(stream: TokenStream): AstNode;
+export interface Parser<T> {
+    parse(stream: TokenStream): T;
 }
 
 
-export function delegate(parserName: string): Parser;
+export function delegate(parserName: string): Parser<AstNode>;
 export function delegate(parserName: string, stream: TokenStream): AstNode;
 export function delegate(parserName: string, stream: TokenStream | null = null) {
     function delegated(stream: TokenStream) {
-        const parser: Parser = stream.data.parsers[parserName];
+        const parser: Parser<AstNode> = stream.data.parsers[parserName];
         if (parser === undefined) {
             throw new Error(`Parser '${parserName}' is undefined.`);
         }
@@ -147,10 +147,10 @@ export class CallParser {
 }
 
 export class KeywordParser {
-    parsers: { [name: string]: Parser; };
+    parsers: { [name: string]: Parser<AstNode>; };
     patterns: { [pattern: string]: string; };
 
-    constructor(parsers: {[keyword: string]: Parser}) {
+    constructor(parsers: {[keyword: string]: Parser<AstNode>}) {
         this.parsers = {};
         this.patterns = {};
 
@@ -159,7 +159,7 @@ export class KeywordParser {
         }
     }
 
-    add(key: string, parser: Parser) {
+    add(key: string, parser: Parser<AstNode>) {
         this.parsers[key] = parser;
         this.patterns[key] = key + "\\b";
     }
@@ -175,13 +175,13 @@ export class KeywordParser {
     }
 }
 
-export interface ChoosableParser extends Parser {
+export interface ChoosableParser extends Parser<AstNode> {
     prefix: TokenPattern;
     consume?: boolean
 }
 
 export function option(
-    pattern: TokenPattern, parser: Parser, consume: boolean = false
+    pattern: TokenPattern, parser: Parser<AstNode>, consume: boolean = false
 ): ChoosableParser {
     return {
         prefix: pattern,
@@ -233,9 +233,9 @@ export class ChooseParser {
 
 
 export class AlternativeParser {
-    parsers: Parser[];
+    parsers: Parser<AstNode>[];
 
-    constructor(parsers: Parser[]) {
+    constructor(parsers: Parser<AstNode>[]) {
         this.parsers = parsers;
     }
 
@@ -259,14 +259,14 @@ export class AlternativeParser {
 
 
 export class RootParser {
-    parser: Parser
+    parser: Parser<AstNode>
 
     opening_pattern: string | null;
     closing_pattern: string;
     patterns: {[name: string]: string};
 
     constructor(
-        parser: Parser,
+        parser: Parser<AstNode>,
         opening: TokenPattern | null = null,
         closing: TokenPattern = "eof",
     ) {
@@ -344,9 +344,9 @@ export function parse_identifier(stream: TokenStream) {
 
 
 
-export class ListParser<T extends AstList<AstNode>> {
-    parser: Parser;
-    cls: new (...args: any) => T;
+export class ListParser<T extends AstNode> {
+    parser: Parser<T>;
+    cls: new (...args: any) => AstList<T>;
 
     opening_pattern: string | null;
     closing_pattern: string | null;
@@ -354,8 +354,8 @@ export class ListParser<T extends AstList<AstNode>> {
     patterns: {[name: string]: string};
 
     constructor(
-        parser: Parser,
-        cls: new (...args: any) => T,
+        parser: Parser<T>,
+        cls: new (...args: any) => AstList<T>,
         opening: TokenPattern | null = null,
         closing: TokenPattern | null = null,
         separator: TokenPattern = pattern("comma")
@@ -392,7 +392,7 @@ export class ListParser<T extends AstList<AstNode>> {
         }
     }
 
-    parse(stream: TokenStream): T {    
+    parse(stream: TokenStream): AstList<T> {    
         const start_location = stream.location;
         let end_location: SourceLocation | null = null;
 
@@ -401,7 +401,11 @@ export class ListParser<T extends AstList<AstNode>> {
         return stream.syntax(this.patterns, () => {
             const intercepted = stream.intercept(["newline", this.separator_pattern]);
 
-            if (this.opening_pattern) stream.expect(this.opening_pattern);
+            if (this.opening_pattern && !stream.get(this.opening_pattern)) {
+                const element = this.parser.parse(stream);
+                const node = new this.cls({values: [element]});
+                return set_location(node, element);
+            }
             
             let token = stream.peek();
             while (token) {
@@ -492,7 +496,7 @@ export function parse_char_condition(stream: TokenStream): AstIdentifier | AstCh
     }
     else if (quote) {
         node = stream.intercept(["whitespace", "newline"], () => {
-            const quoted_char = stream.syntax({char: '[^\\s"]'}, () => stream.get("char"));
+            const quoted_char = stream.syntax({char: '[^\\n\\r\\t"]'}, () => stream.get("char"));
             const closing_quote = stream.expect("quote");
 
             return set_location(
