@@ -97,7 +97,7 @@ export default defineComponent({
   overflow: scroll;
   
   color: var(--white);
-  background: var(--background);
+  background: var(--area-background);
 }
 .output.error {
   color: var(--error);

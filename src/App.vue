@@ -164,14 +164,16 @@ export default defineComponent({
 
   --error: #f48771;
   --success: #64fa61;
-  --background-lighter: rgba(127, 127, 127, 0.1);
-  --background: rgba(255, 255, 255, 0.04);
+  --background-lighter: #232323;
+  --area-background: #212121;
+  --background: #181818;
   --separator-background: #252526;
 }
 
 body {
   font-size: 16px;
   color: black;
+  background: var(--background);
 }
 
 main,
