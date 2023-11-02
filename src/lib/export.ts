@@ -8,6 +8,19 @@ const options = {
 const parser = new XMLParser(options);
 const builder = new XMLBuilder(options);
 
+export function get_position() {
+    const center_y = 0;
+    const center_x = 0;
+
+    const range_x = 1920 / 2;
+    const range_y = 1080 / 2;
+
+    return {
+        x: center_x + Math.floor(Math.random() * range_x),
+        y: center_y + Math.floor(Math.random() * range_y)
+    }
+}
+
 export function convert_turing_xml(turing: TuringMachine) {
     const state_to_id: {[name: string]: number} = {};
     for (const [id, state_name] of Array.from(turing.states).entries()) {
@@ -22,8 +35,7 @@ export function convert_turing_xml(turing: TuringMachine) {
     const states = Array.from(turing.states).map(state => ({
         "@_id": state_to_id[state].toString(),
         "@_name": state,
-        x: 0,
-        y: 0,
+        ...get_position(),
         ...(state == turing.initial_state ? {initial: ""} : {}),
         ...(turing.final_states.has(state) ? {final: ""} : {}),
     }));
