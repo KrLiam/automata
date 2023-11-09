@@ -1,3 +1,6 @@
+
+export class ComputationError extends Error {}
+
 export function is_iterable(obj: any): obj is Iterable<any> {
     if (obj == null) {
         return false;
@@ -579,15 +582,33 @@ export class TuringTransitionMap {
 
     get(state: string): TuringTransitionSymbolMap | undefined;
     get(state: string, read_chars: string[]
-    ): TuringTransitionMapValue | TuringTransitionMapValue[] | undefined;
+    ): TuringTransitionMapValue[];
     get(state: string, read_chars: string[] | null = null
-    ): TuringTransitionSymbolMap | TuringTransitionMapValue | TuringTransitionMapValue[] | undefined {
+    ): TuringTransitionSymbolMap | TuringTransitionMapValue[] | undefined {
         const symbol_map = this.map[state];
         if (read_chars === null) return symbol_map;
 
-        const key = JSON.stringify(read_chars);
+        const transitions: TuringTransitionMapValue[] = [];
+        for (let [key, value] of Object.entries(symbol_map)) {
+            const pattern = JSON.parse(key);
 
-        return symbol_map[key];
+            let match = true;
+            for (let i = 0; i < pattern.length; i++) {
+                if (pattern[i] && read_chars[i] && pattern[i] !== read_chars[i]) {
+                    match = false;
+                    break;
+                }
+            }
+
+            if (match) {
+                const values = value instanceof Array ? value : [value];
+                for (const v of values) {
+                    transitions.push(v);
+                }
+            }
+        }
+        
+        return transitions;
     }
 
     *traverse(): Generator<
@@ -668,6 +689,56 @@ export class TuringTransitionMap {
         return states;
     }
 }
+
+
+export type TuringTapeState = [string, number];
+export type TuringConfiguration = [State, TuringTapeState[]];
+
+export class TuringTape {
+    value: string;
+    pos: number; 
+
+    constructor(value: string = "", pos: number = 0) {
+        this.value = value;
+        this.pos = pos;
+    }
+
+    shift_left(amount: number = 1) {
+        this.shift(-amount);
+    }
+    shift_right(amount: number = 1) {
+        this.shift(amount);
+    }
+    shift(amount: number) {
+        this.pos += amount;
+
+        if (this.pos < 0) {
+            this.extend_left(Math.abs(this.pos));
+        }
+        if (this.pos >= this.value.length) {
+            this.extend_right(this.pos - this.value.length + 1);
+        }
+    }
+
+    extend_left(amount: number) {
+        this.value = " ".repeat(amount) + this.value;
+        this.pos += amount;
+    }
+    extend_right(amount: number) {
+        this.value = this.value + " ".repeat(amount);
+    }
+
+    read() {
+        if (!this.value.length) return " ";
+
+        return this.value[this.pos];
+    }
+
+    write(char: string) {
+        this.value = this.value.slice(0, this.pos) + char + this.value.slice(this.pos+1);
+    }
+}
+
 
 export class TuringMachine {
     states: Set<State>;
@@ -813,5 +884,55 @@ export class TuringMachine {
             states,
             this.alphabet
         );
+    }
+
+    *compute(input: string): Generator<TuringConfiguration> {
+        const input_tape = new TuringTape(input);
+        const tapes = [
+            input_tape,
+            ...Array.from(new Array(this.tapes.length - 1), () => new TuringTape())
+        ];
+
+        let state = this.initial_state;
+
+        const shift_number = {
+            ">": 1,
+            "<": -1,
+            "-": 0,
+        };
+
+        while (true) {
+            yield [state, tapes.map(t => [t.value, t.pos])];
+
+            if (this.final_states.has(state)) {
+                break;
+            };
+
+            const read_chars = tapes.map(tape => tape.read());
+            const transitions = this.transition_map.get(state, read_chars)
+
+            if (!transitions.length) break;
+
+            if (transitions.length > 1) throw new ComputationError("Unsupported deterministic computation.");
+
+            const transition = transitions[0];
+
+            state = transition.state;
+            for (let i = 0; i < tapes.length; i++ ) {
+                const tape = tapes[i];
+                const write_char = transition.write_chars[i];
+                const shift = transition.shift[i];
+
+                if (write_char) tape.write(write_char);
+                tape.shift(shift_number[shift]);
+            }
+        }
+    }
+
+    test(input: string) {
+        for (const [state, _] of this.compute(input)) {
+            if (this.final_states.has(state)) return true;
+        }
+        return false;
     }
 }
