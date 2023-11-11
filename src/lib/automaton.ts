@@ -588,6 +588,8 @@ export class TuringTransitionMap {
         const symbol_map = this.map[state];
         if (read_chars === null) return symbol_map;
 
+        if (!symbol_map) return [];
+
         const transitions: TuringTransitionMapValue[] = [];
         for (let [key, value] of Object.entries(symbol_map)) {
             const pattern = JSON.parse(key);
