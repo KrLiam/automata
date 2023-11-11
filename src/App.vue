@@ -29,6 +29,7 @@ const expose = {
   underline_code,
   XMLParser,
   convert_turing_xml,
+  test
 };
 for (let [key, value] of Object.entries(expose)) {
   // @ts-ignore
@@ -51,6 +52,7 @@ import {AstRoot, AstIdentifier} from './lib/ast'
 import {get_class_hierarchy, Visitor, Rule, rule} from './lib/visitor';
 import {Scope, Evaluator, EvaluationError} from './lib/evaluator';
 import {convert_turing_xml} from './lib/export';
+import {test} from './lib/expose';
 import {example_code} from "./lib/example";
 import { XMLParser } from "fast-xml-parser";
 
