@@ -19,7 +19,7 @@ export function test(
     name: string,
     inputs: string[],
     show_input: boolean = true,
-    baseline_function: ((n: string) => number) | null = null
+    baseline_function: ((n: number) => number) | null = null
 ) {
     // @ts-ignore
     const scope: Scope = window.$scope;
@@ -37,7 +37,7 @@ export function test(
         const result = accepted ? "accepted" : "rejected";
         let out = `${show_input ? input : i}: ${result} | size=${n}, steps = ${steps}`;
         if (baseline_function) {
-            const baseline = (2*n+2)*(Math.log2(n)) + n + 1
+            const baseline = baseline_function(n);
             out += `, baseline = ${baseline}, steps/baseline = ${steps / baseline}`;
         }
 
