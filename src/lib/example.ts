@@ -170,4 +170,4 @@ turing anbncn tapes [f1, f2, f3] {
     // marca qa como estado de aceitação
     final qa;
 }
-`;
+`
