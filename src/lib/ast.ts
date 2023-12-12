@@ -121,6 +121,30 @@ export class AstChar extends AstNode {
     }
 }
 
+export type AstStringArgs = AstNodeArgs & {
+    value: string
+}
+export class AstString extends AstNode {
+    value: string
+
+    constructor({ value, ...args }: AstStringArgs) {
+        super(args)
+        this.value = value
+    }
+}
+
+export type AstPrintArgs = AstNodeArgs & {
+    message: AstString
+}
+export class AstPrint extends AstNode {
+    message: AstString
+
+    constructor({ message, ...args }: AstPrintArgs) {
+        super(args)
+        this.message = message
+    }
+}
+
 export type AstRootArgs = AstNodeArgs & {
     children: AstNode[]
 }

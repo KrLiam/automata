@@ -28,6 +28,8 @@ import {
     AstStartLocationChar,
     AstEndLocationChar,
     AstTapeList,
+    AstString,
+    AstPrint,
 } from "./ast"
 import { Token, set_location } from "./tokenstream"
 import { ParseError } from "./error"
@@ -39,6 +41,7 @@ export enum Patterns {
     final = "final\\b",
     turing = "turing\\b",
     tapes = "tapes\\b",
+    print = "print\\b",
 
     opening_bracket = "\\{",
     closing_bracket = "\\}",
@@ -47,6 +50,8 @@ export enum Patterns {
     semicolon = ";",
     colon = ":",
     comma = ",",
+    quote = '"',
+    singlequote = "'",
     comment = "//.*",
     multiline_comment = "/\\*[\\s\\S]*?\\*/",
 
@@ -67,6 +72,7 @@ export function get_default_parsers(): { [key: string]: Parser<AstNode> } {
         state: delegate("identifier"),
         state_list: new ListParser(delegate("state"), AstStateList),
         char_condition: new CallParser(parse_char_condition),
+        string: new CallParser(parse_string),
 
         module: new RootParser(delegate("statement")),
         root: new RootParser(
@@ -80,8 +86,10 @@ export function get_default_parsers(): { [key: string]: Parser<AstNode> } {
             option(pattern("final"), new CallParser(parse_final_states), true),
             option(pattern("finite"), new CallParser(parse_finite_automaton), true),
             option(pattern("turing"), delegate("turing"), true),
+            option(pattern("print"), delegate("print")),
             option(pattern("identifier"), delegate("transition")),
         ),
+        print: new CallParser(parse_print_statement),
 
         transition: new CallParser(parse_finite_transition),
 
@@ -471,6 +479,67 @@ export class ListParser<T extends AstNode> {
             return set_location(node, start_location, end_location)
         })
     }
+}
+
+export function parse_string(stream: TokenStream): AstString {
+    const [quote, singlequote] = stream.expect_multiple("quote", "singlequote")
+    const opening = (quote ?? singlequote) as Token
+
+    let escape_chars: { [char: string]: string } = {
+        n: "\n",
+        "\\": "\\",
+    }
+    escape_chars[opening.value] = opening.value
+    const escaped_pattern = Object.keys(escape_chars).join("|").replace("\\", "\\\\")
+
+    const patterns = {
+        quote: quote ? '"' : null,
+        singlequote: singlequote ? "'" : null,
+        backslash: "\\\\",
+        text: `[^\\n${opening.value}]`,
+    }
+    return stream.syntax(patterns, () =>
+        stream.intercept(["whitespace", "newline"], () => {
+            let value = ""
+
+            let closing
+            while (true) {
+                const token = stream.get("backslash", "text", opening.type)
+                if (!token) {
+                    throw set_location(
+                        new InvalidSyntax(`Unterminated string literal.`),
+                        opening,
+                    )
+                }
+
+                if (token.match("backslash")) {
+                    const char = stream.syntax(
+                        { escaped_char: escaped_pattern },
+                        () => stream.expect("escaped_char"),
+                    )
+                    value += escape_chars[char.value]
+                } else if (token.match("text")) {
+                    value += token.value
+                } else {
+                    break
+                }
+            }
+
+            return set_location(new AstString({ value }), opening, closing)
+        }),
+    )
+}
+
+export function parse_print_statement(stream: TokenStream) {
+    const print_keyword = stream.get("print")
+    stream.intercept(["whitespace"], () => stream.expect("whitespace"))
+    const string = delegate("string", stream) as AstString
+
+    return set_location(
+        new AstPrint({ message: string }),
+        print_keyword ?? string,
+        string,
+    )
 }
 
 export function parse_initial_state(stream: TokenStream) {

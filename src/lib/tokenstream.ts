@@ -245,13 +245,17 @@ export class TokenStream {
         return result
     }
 
-    syntax(patterns: { [key: string]: string }): TokenStream
-    syntax<T>(patterns: { [key: string]: string }, callback: () => T): T
+    syntax(patterns: { [key: string]: string | null }): TokenStream
+    syntax<T>(patterns: { [key: string]: string | null }, callback: () => T): T
     syntax<T>(
-        patterns: { [key: string]: string },
+        patterns: { [key: string]: string | null },
         callback: (() => T) | null = null,
     ): T | TokenStream {
-        const rules = { ...patterns, ...this.syntax_rules }
+        let rules: { [key: string]: string } = {}
+        for (const [key, value] of Object.entries(patterns)) {
+            if (value !== null) rules[key] = value
+        }
+        rules = { ...rules, ...this.syntax_rules }
 
         if (!callback) {
             const stream = this.copy()

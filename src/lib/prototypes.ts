@@ -20,6 +20,8 @@ import {
     AstTuringNamedChar,
     AstTuringCharList,
     AstTuringTransition,
+    AstPrint,
+    AstString,
 } from "./ast"
 import {
     FiniteAutomaton,
@@ -41,6 +43,8 @@ export const prototypes: any = {
     SourceLocation,
     Token,
     AstNode,
+    AstString,
+    AstPrint,
     AstIdentifier,
     AstList,
     AstStateList,

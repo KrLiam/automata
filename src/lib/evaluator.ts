@@ -6,6 +6,7 @@ import {
     AstInitialState,
     AstList,
     AstNode,
+    AstPrint,
     AstRoot,
     AstTransition,
     AstTuringCharList,
@@ -399,5 +400,15 @@ export class Evaluator extends Visitor<AstNode, Scope, void> {
         }
 
         transitions.push([node.start.value, read, node.end.value, write, shift])
+    }
+
+    @rule(AstPrint)
+    print(node: AstPrint, scope: Scope) {
+        const message = node.message.value
+
+        if (scope.is_defined("$post")) {
+            const post = scope.value("$post")
+            post({ type: "log", level: "info", message: message })
+        }
     }
 }
