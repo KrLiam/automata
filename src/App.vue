@@ -73,7 +73,7 @@ export default defineComponent({
       timeout: null as number | null,
       changeInterval: 500,
       code: source ? source : example_code,
-      messages: [],
+      messages: [] as any[],
       objects: {},
     }
   },

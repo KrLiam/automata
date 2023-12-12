@@ -2,12 +2,12 @@
     <ul
     class="output"
     ref="messages"
+    @scroll="scrolled"
     >
         <li
         :class="['output-message', level]"
         :key="message"
         v-for="{level, message} in messages"
-        @scroll="scrolled"
         >
             {{message}}
         </li>
@@ -30,17 +30,16 @@
         autoScroll: true,
     }},
     updated() {
-        console.log("autoscrolled", this.autoScroll);
         if (this.autoScroll) this.scrollToBottom();
     },
     methods: {
         scrolled() {
-            const ul = this.$refs.messages;
+            const ul = this.$refs.messages as HTMLUListElement;
             const scrollPos = ul.scrollHeight - ul.offsetHeight;
             this.autoScroll = Math.abs(ul.scrollTop - scrollPos) < 1;
         },
         scrollToBottom() {
-            const ul = this.$refs.messages;
+            const ul = this.$refs.messages as HTMLUListElement;
             ul.scrollTop = ul.scrollHeight;
         }
     }
