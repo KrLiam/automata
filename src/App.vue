@@ -55,6 +55,8 @@ import {convert_turing_xml} from './lib/export';
 import {test} from './lib/expose';
 import {example_code} from "./lib/example";
 import { XMLParser } from "fast-xml-parser";
+import {recover_prototypes} from "./lib/prototypes";
+import CompilerWorker from "./workers/compiler?worker";
 
 export default defineComponent({
   components: {
@@ -65,7 +67,7 @@ export default defineComponent({
   data() {
     const source = localStorage.editorSource;
     return {
-      compiler: new Compiler(),
+      compiler: CompilerWorker(),
       editorWidth: "50%",
       editorHeight: "100%",
       timeout: null as number | null,
@@ -77,6 +79,8 @@ export default defineComponent({
     }
   },
   mounted() {
+    this.compiler.onmessage = this.compile_response.bind(this);
+
     setTimeout(() => this.compile(this.code), 1000);
   },
   methods: {
@@ -91,43 +95,41 @@ export default defineComponent({
     },
 
     async compile(source: string) {
-      const start = Date.now();
-
-
       console.log("compiling...")
       this.output = "Compiling...";
       this.outputStatus = "info";
 
-      try {
-        const {ast, tokens, scope} = this.compiler.compile(source);
-        const time_taken = Date.now() - start;
+      this.compiler.postMessage({type: "compile", source});
+    },
+    async compile_response(event: MessageEvent<any>) {
+      const data = recover_prototypes(event.data);
 
+      if (data.type === "success") {
+        console.log(data);
+        const {ast, tokens, scope, time_taken} = data;
+        
         console.log(`Took ${time_taken}ms to compile.`);
-
-        const text = JSON.stringify(ast.toObject(), null, 4);
-  
         this.output = `Compilation finished successfuly in ${time_taken}ms!`;
         this.outputStatus = "success";
 
         this.objects = {};
-        for (const [name, value] of scope) {
+        for (const [name, value] of Object.entries(scope.bindings)) {
           // @ts-ignore
           this.objects[name] = value;
         }
-
+    
         // @ts-ignore
         window.$ast = ast;
         // @ts-ignore
         window.$tokens = tokens;
         // @ts-ignore
         window.$scope = scope;
+      }
+      else if (data.type === "error") {
+        const { message } = data;
 
-      } catch (err) {
-        if (err instanceof CompilationError) {
-          this.output = err.message;
-          this.outputStatus = "error";
-        }
-        else throw err;
+        this.output = message;
+        this.outputStatus = "error";
       }
     }
   }
