@@ -67,7 +67,7 @@ export default defineComponent({
   data() {
     const source = localStorage.editorSource;
     return {
-      compiler: CompilerWorker(),
+      compiler: new CompilerWorker(),
       editorWidth: "50%",
       editorHeight: "100%",
       timeout: null as number | null,
