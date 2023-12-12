@@ -15,42 +15,37 @@
             >
               Export
             </button>
-         </li>
+          </li>
         </ul>
 
       </div>
       <div class="view"></div>
     </div>
-    <div
-      :class="['output', outputStatus]">
-      {{output}}
-    </div>
+    <OutputMessages
+      :messages="messages"
+    ></OutputMessages>
   </div>
 </template>
 
 <script lang="ts" setup>
+type Message = {level: string, message: string};
+
 defineProps<{
-  output: string,
-  outputStatus: string,
+  messages: Message[],
   objects: {[name: string]: LangObject}
 }>();
 </script>
 
 <script lang="ts">
 import { defineComponent, defineProps } from 'vue';
+import OutputMessages from '../components/OutputMessages.vue';
 import { LangObject } from '../lib/evaluator';
 import { TuringMachine } from '../lib/automaton';
 import { convert_turing_xml } from '../lib/export';
 
 export default defineComponent({
-  data() { return {
-    name: "",
-    values: [1,2,3]
-  }},
-  watch: {
-    objects(new_value) {
-      // console.log("Console changed.", new_value);
-    }
+  components: {
+    OutputMessages,
   },
   methods: {
     download(filename: string, text: string) {
@@ -67,8 +62,6 @@ export default defineComponent({
     },
 
     export_jflap(name: string, value: any) {
-      console.log("exporting", name);
-
       if (value instanceof TuringMachine) {
         const str = convert_turing_xml(value);
         this.download(`${name}.jff`, str);
@@ -88,22 +81,6 @@ export default defineComponent({
   flex-direction: column;
   justify-content: space-between;  
   font-family: "Droid Sans Mono", "monospace";
-}
-.output {
-  padding: 1em;
-  height: 15em;
-  
-  white-space: pre-wrap;
-  overflow: scroll;
-  
-  color: var(--white);
-  background: var(--area-background);
-}
-.output.error {
-  color: var(--error);
-}
-.output.success {
-  color: var(--success);
 }
 
 .content .top {

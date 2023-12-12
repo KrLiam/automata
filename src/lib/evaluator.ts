@@ -87,6 +87,29 @@ export class Scope {
         return binding;
     }
 
+    delete(name: string) {
+        if (!this.is_declared(name)) return;
+        delete this.bindings[name];
+    }
+
+    provide<T>(values: {[name: string]: any}, callback: () => T): T {
+        for (const [name, value] of Object.entries(values)) {
+            this.declare(name, value);
+        }
+
+        let result;
+        try {
+            result = callback();
+        }
+        finally {
+            for (const name of Object.keys(values)) {
+                this.delete(name);
+            }
+        }
+
+        return result;
+    }
+
     value(name: string): any {
         const binding = this.bindings[name]
         if (!binding) {
@@ -253,6 +276,10 @@ export class Evaluator extends Visitor<AstNode, Scope, void> {
         
         try {
             binding.define(obj);
+            if (scope.is_defined("$post")) {
+                const post = scope.value("$post");
+                post({type:"log", message:`Defined turing machine ${name}.`});
+            }
         }
         catch (err) {
             if (err instanceof RedefinitionError) throw set_location(

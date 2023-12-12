@@ -102,10 +102,12 @@ export class CompilationError extends Error {
 export class Compiler {
     parsers: {[key: string]: Parser<AstNode>;};
     evaluator: Evaluator;
+    post: (arg: any) => any;
 
-    constructor() {
+    constructor(post: (a: any) => any = () => {}) {
         this.parsers = get_default_parsers();
         this.evaluator = new Evaluator();
+        this.post = post;
     }
 
     parse(source: string | TokenStream, parser: string = "module"): AstNode {
@@ -124,13 +126,19 @@ export class Compiler {
         return ast;
     }
 
-    compile(source: string, module_name: string = "main") {
+    compile(source: string, module_name: string = "main", scope: Scope | null = null) {
         try {
             const stream = new TokenStream(source);
-            const ast = this.parse(stream);
 
-            const scope = new Scope();
-            this.evaluator.invoke(ast, scope);
+            const ast = stream.provide({post: this.post}, () => (
+                this.parse(stream)
+            ));
+
+            if (!scope) scope = new Scope();
+
+            scope.provide({$post: this.post}, () => (
+                this.evaluator.invoke(ast, scope as Scope)
+            ));
 
             return {ast, tokens: [...stream.tokens], scope};
         }

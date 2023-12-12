@@ -1,7 +1,7 @@
-import { store_prototypes } from "@/lib/prototypes";
+import { store_prototypes } from "../lib/prototypes";
 import { CompilationError, Compiler } from "../lib/compiler";
 
-const compiler = new Compiler();
+const compiler = new Compiler(postMessage.bind(this));
 
 onmessage = function (event) {
     const data = event.data;
@@ -25,7 +25,7 @@ export function compile(source: string) {
     }
     catch (err) {
         if (err instanceof CompilationError) {
-            postMessage({type: "error", message: err.message})
+            postMessage({type: "log", level: "error", message: err.message})
         }
         else throw err;
     }

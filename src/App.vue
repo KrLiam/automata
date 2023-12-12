@@ -73,8 +73,7 @@ export default defineComponent({
       timeout: null as number | null,
       changeInterval: 500,
       code: source ? source : example_code,
-      output: "",
-      outputStatus: "",
+      messages: [],
       objects: {},
     }
   },
@@ -94,10 +93,16 @@ export default defineComponent({
       localStorage.editorSource = source;
     },
 
+    log(level: string, message: string) {
+      this.messages.push({level, message});
+    },
+    clearLog() {
+      this.messages = [];
+    },
+
     async compile(source: string) {
-      console.log("compiling...")
-      this.output = "Compiling...";
-      this.outputStatus = "info";
+      this.clearLog();
+      this.log("info", "Compiling...");
 
       this.compiler.postMessage({type: "compile", source});
     },
@@ -105,15 +110,12 @@ export default defineComponent({
       const data = recover_prototypes(event.data);
 
       if (data.type === "success") {
-        console.log(data);
         const {ast, tokens, scope, time_taken} = data;
         
-        console.log(`Took ${time_taken}ms to compile.`);
-        this.output = `Compilation finished successfuly in ${time_taken}ms!`;
-        this.outputStatus = "success";
+        this.log("success", `Done in ${time_taken}ms!`);
 
         this.objects = {};
-        for (const [name, value] of Object.entries(scope.bindings)) {
+        for (const [name, value] of scope) {
           // @ts-ignore
           this.objects[name] = value;
         }
@@ -125,11 +127,8 @@ export default defineComponent({
         // @ts-ignore
         window.$scope = scope;
       }
-      else if (data.type === "error") {
-        const { message } = data;
-
-        this.output = message;
-        this.outputStatus = "error";
+      else if (data.type === "log") {
+        this.log(data.level ?? "info", data.message);
       }
     }
   }
@@ -150,8 +149,7 @@ export default defineComponent({
     />
     <EditorSeparator/>
     <MainView
-      :output="output"
-      :outputStatus="outputStatus"
+      :messages="messages"
       :objects="objects"
     ></MainView>
   </main>
