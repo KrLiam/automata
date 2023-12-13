@@ -142,14 +142,21 @@ export class Scope {
         return binding.unwrap()
     }
 
-    is_declared(name: string): boolean {
+    is_declared(name: string, parent: boolean = false): boolean {
         const binding = this.bindings[name]
+        if (!binding && parent && this.parent) {
+            return this.parent.is_declared(name, parent)
+        }
+
         return binding ? true : false
     }
 
-    is_defined(name: string): boolean {
+    is_defined(name: string, parent: boolean = false): boolean {
         const binding = this.bindings[name]
-        if (!binding) return false
+        if (!binding) {
+            if (parent && this.parent) return this.parent.is_declared(name, parent)
+            return false
+        }
 
         return binding.defined
     }
@@ -406,7 +413,7 @@ export class Evaluator extends Visitor<AstNode, Scope, void> {
     print(node: AstPrint, scope: Scope) {
         const message = node.message.value
 
-        if (scope.is_defined("$post")) {
+        if (scope.is_defined("$post", true)) {
             const post = scope.value("$post")
             post({ type: "log", level: "info", message: message })
         }
