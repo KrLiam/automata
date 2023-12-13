@@ -5,6 +5,7 @@ const MONACO_EDITOR_OPTIONS = {
     automaticLayout: true,
     formatOnType: true,
     formatOnPaste: true,
+    'semanticHighlighting.enabled': true
 }
 
 const expose = {
@@ -60,6 +61,7 @@ import { test } from "./lib/expose"
 import { example_code } from "./lib/example"
 import { XMLParser } from "fast-xml-parser"
 import { recover_prototypes } from "./lib/prototypes"
+import { mount as editorMount } from "./lib/language"
 import CompilerWorker from "./workers/compiler?worker"
 
 export default defineComponent({
@@ -169,11 +171,13 @@ export default defineComponent({
         <vue-monaco-editor
             v-model:value="code"
             theme="vs-dark"
+            language="automata"
             :options="MONACO_EDITOR_OPTIONS"
             :class="['editor']"
             :width="editorWidth"
             :height="editorHeight"
             @change="editorChange"
+            @mount="editorMount"
         />
         <EditorSeparator />
         <MainView :messages="messages" :objects="objects"></MainView>
