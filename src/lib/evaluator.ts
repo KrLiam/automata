@@ -447,11 +447,13 @@ export class Evaluator extends Visitor<AstNode, Scope, void> {
 
         for (let i = 0; i < entries.length; i++) {
             const entry = entries[i]
+            const line = `${i + 1}. "${entry.value}" `
+            
+            log(scope, "info", line + "Running")
 
             const accepted = value.test(entry.value)
             const status = accepted ? "Accepted" : "Rejected"
-            const line = `${i + 1}. "${entry.value}" ${status}`
-            log(scope, accepted ? "success" : "error", line)
+            log(scope, accepted ? "success" : "error", line + status, true)
         }
 
         const dashes = header.length - 6
@@ -465,9 +467,9 @@ export class Evaluator extends Visitor<AstNode, Scope, void> {
     }
 }
 
-function log(scope: Scope, level: string, message: string) {
+function log(scope: Scope, level: string, message: string, resetLine: boolean = false) {
     if (scope.is_defined("$post", true)) {
         const post = scope.value("$post")
-        post({ type: "log", level, message })
+        post({ type: "log", level, message, resetLine })
     }
 }

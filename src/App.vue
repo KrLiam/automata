@@ -97,7 +97,10 @@ export default defineComponent({
             localStorage.editorSource = source
         },
 
-        log(level: string, message: string) {
+        log(level: string, message: string, resetLine: boolean = false) {
+            if (resetLine && this.messages.length) {
+                this.messages.pop()
+            }
             this.messages.push({ level, message })
         },
         clearLog() {
@@ -131,7 +134,7 @@ export default defineComponent({
                 // @ts-ignore
                 window.$scope = scope
             } else if (data.type === "log") {
-                this.log(data.level ?? "info", data.message)
+                this.log(data.level ?? "info", data.message, data.resetLine ? true : false)
             }
         },
     },
