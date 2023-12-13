@@ -30,6 +30,7 @@ import {
     AstTapeList,
     AstString,
     AstPrint,
+    AstTest,
 } from "./ast"
 import { Token, set_location } from "./tokenstream"
 import { ParseError } from "./error"
@@ -42,6 +43,7 @@ export enum Patterns {
     turing = "turing\\b",
     tapes = "tapes\\b",
     print = "print\\b",
+    test = "test\\b",
 
     opening_bracket = "\\{",
     closing_bracket = "\\}",
@@ -87,11 +89,20 @@ export function get_default_parsers(): { [key: string]: Parser<AstNode> } {
             option(pattern("finite"), new CallParser(parse_finite_automaton), true),
             option(pattern("turing"), delegate("turing"), true),
             option(pattern("print"), delegate("print")),
+            option(pattern("test"), delegate("test")),
             option(pattern("identifier"), delegate("transition")),
         ),
         print: new CallParser(parse_print_statement),
+        test: new CallParser(parse_test_statement),
 
         transition: new CallParser(parse_finite_transition),
+
+        "expression:list:string": new ListParser(
+            delegate("string"),
+            AstList<AstString>,
+            pattern("opening_square_bracket"),
+            pattern("closing_square_bracket"),
+        ),
 
         turing: new CallParser(parse_turing_machine),
         "turing:tape": delegate("identifier"),
@@ -532,7 +543,6 @@ export function parse_string(stream: TokenStream): AstString {
 
 export function parse_print_statement(stream: TokenStream) {
     const print_keyword = stream.get("print")
-    stream.intercept(["whitespace"], () => stream.expect("whitespace"))
     const string = delegate("string", stream) as AstString
 
     return set_location(
@@ -540,6 +550,15 @@ export function parse_print_statement(stream: TokenStream) {
         print_keyword ?? string,
         string,
     )
+}
+
+export function parse_test_statement(stream: TokenStream): AstTest {
+    const keyword = stream.get("test")
+    const target = delegate("identifier", stream) as AstIdentifier
+
+    const entries = delegate("expression:list:string", stream) as AstList<AstString>
+
+    return set_location(new AstTest({ target, entries }), keyword ?? target, entries)
 }
 
 export function parse_initial_state(stream: TokenStream) {

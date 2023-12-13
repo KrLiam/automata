@@ -8,6 +8,7 @@ import {
     AstNode,
     AstPrint,
     AstRoot,
+    AstTest,
     AstTransition,
     AstTuringCharList,
     AstTuringMachine,
@@ -26,6 +27,14 @@ import {
 } from "./automaton"
 import { SourceLocation, set_location } from "./tokenstream"
 import { Visitor, rule } from "./visitor"
+
+export function type_name(value: any): string {
+    const type = typeof value
+
+    if (type !== "object") return type
+
+    return Object.getPrototypeOf(value).constructor.name
+}
 
 export class EvaluationError extends Error {
     location: SourceLocation = SourceLocation.invalid
@@ -311,13 +320,6 @@ export class Evaluator extends Visitor<AstNode, Scope, void> {
 
         try {
             binding.define(obj)
-            if (scope.is_defined("$post")) {
-                const post = scope.value("$post")
-                post({
-                    type: "log",
-                    message: `Defined turing machine ${name}.`,
-                })
-            }
         } catch (err) {
             if (err instanceof RedefinitionError)
                 throw set_location(err, node.target)
@@ -413,9 +415,59 @@ export class Evaluator extends Visitor<AstNode, Scope, void> {
     print(node: AstPrint, scope: Scope) {
         const message = node.message.value
 
-        if (scope.is_defined("$post", true)) {
-            const post = scope.value("$post")
-            post({ type: "log", level: "info", message: message })
+        log(scope, "info", message)
+    }
+
+    @rule(AstTest)
+    test(node: AstTest, scope: Scope) {
+        const name = node.target.value
+
+        let obj: LangObject
+        try {
+            obj = scope.value(name)
+        } catch (err) {
+            if (err instanceof EvaluationError) throw set_location(err, node.target)
+            else throw err
         }
+
+        const value = obj.value
+        if (!(value instanceof TuringMachine)) {
+            throw set_location(
+                new EvaluationError(
+                    `Object of type ${type_name(value)} is not testable.`,
+                ),
+                node.target,
+            )
+        }
+
+        const header = `--- Testing ${name} ---`
+        log(scope, "info", header)
+
+        const entries = node.entries.values
+
+        for (let i = 0; i < entries.length; i++) {
+            const entry = entries[i]
+
+            const accepted = value.test(entry.value)
+            const status = accepted ? "Accepted" : "Rejected"
+            const line = `${i + 1}. "${entry.value}" ${status}`
+            log(scope, accepted ? "success" : "error", line)
+        }
+
+        const dashes = header.length - 6
+        log(
+            scope,
+            "info",
+            "-".repeat(Math.floor(dashes / 2)) +
+                " Done " +
+                "-".repeat(Math.ceil(dashes / 2)),
+        )
+    }
+}
+
+function log(scope: Scope, level: string, message: string) {
+    if (scope.is_defined("$post", true)) {
+        const post = scope.value("$post")
+        post({ type: "log", level, message })
     }
 }

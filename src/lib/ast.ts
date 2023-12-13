@@ -63,6 +63,10 @@ export class AstList<T> extends AstNode {
         super(args)
         this.values = values
     }
+
+    *[Symbol.iterator]() {
+        yield* this.values
+    }
 }
 
 export class AstStateList extends AstList<AstIdentifier> {}
@@ -142,6 +146,21 @@ export class AstPrint extends AstNode {
     constructor({ message, ...args }: AstPrintArgs) {
         super(args)
         this.message = message
+    }
+}
+
+export type AstTestArgs = AstNodeArgs & {
+    target: AstIdentifier
+    entries: AstList<AstString>
+}
+export class AstTest extends AstNode {
+    target: AstIdentifier
+    entries: AstList<AstString>
+
+    constructor({ target, entries, ...args }: AstTestArgs) {
+        super(args)
+        this.target = target
+        this.entries = entries
     }
 }
 
