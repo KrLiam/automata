@@ -29,7 +29,7 @@ export function compile(source: string) {
         )
     } catch (err) {
         if (err instanceof CompilationError) {
-            postMessage({ type: "log", level: "error", message: err.message })
+            postMessage({ type: "fail", message: err.message })
         } else throw err
     }
 }

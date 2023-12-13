@@ -71,7 +71,8 @@ export default defineComponent({
     data() {
         const source = localStorage.editorSource
         return {
-            compiler: new CompilerWorker(),
+            compiler: null as Worker | null,
+            compilerBusy: false,
             editorWidth: "50%",
             editorHeight: "100%",
             timeout: null as number | null,
@@ -82,21 +83,10 @@ export default defineComponent({
         }
     },
     mounted() {
-        this.compiler.onmessage = this.compile_response.bind(this)
-
+        this.restartCompiler()
         setTimeout(() => this.compile(this.code), 1000)
     },
     methods: {
-        async editorChange(source: string) {
-            if (this.timeout) clearInterval(this.timeout)
-            this.timeout = setTimeout(() => {
-                this.timeout = null
-                this.compile(source)
-            }, this.changeInterval)
-
-            localStorage.editorSource = source
-        },
-
         log(level: string, message: string, resetLine: boolean = false) {
             if (resetLine && this.messages.length) {
                 this.messages.pop()
@@ -107,11 +97,39 @@ export default defineComponent({
             this.messages = []
         },
 
+        async editorChange(source: string) {
+            if (this.timeout) clearInterval(this.timeout)
+            this.timeout = setTimeout(() => {
+                this.timeout = null
+                this.compile(source)
+            }, this.changeInterval)
+
+            localStorage.editorSource = source
+        },
+
+        restartCompiler() {
+            if (this.compiler) {
+                this.compiler.terminate()
+                this.log("error", "Aborted.")
+            }
+            this.compiler = new CompilerWorker()
+            this.compiler.onmessage = this.compile_response.bind(this)
+
+            this.compilerBusy = false
+        },
         async compile(source: string) {
             this.clearLog()
+
+            if (this.compilerBusy) this.restartCompiler()
+
+            if (!this.compiler) {
+                this.log("error", "Compiler is broken. Refresh the page.")
+                return
+            }
             this.log("info", "Compiling...")
 
             this.compiler.postMessage({ type: "compile", source })
+            this.compilerBusy = true
         },
         async compile_response(event: MessageEvent<any>) {
             const data = recover_prototypes(event.data)
@@ -133,6 +151,11 @@ export default defineComponent({
                 window.$tokens = tokens
                 // @ts-ignore
                 window.$scope = scope
+
+                this.compilerBusy = false
+            } else if (data.type === "fail") {
+                this.log("error", data.message)
+                this.compilerBusy = false
             } else if (data.type === "log") {
                 this.log(data.level ?? "info", data.message, data.resetLine ? true : false)
             }
