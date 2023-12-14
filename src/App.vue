@@ -170,7 +170,6 @@ export default defineComponent({
     <main>
         <vue-monaco-editor
             v-model:value="code"
-            theme="vs-dark"
             language="automata"
             :options="MONACO_EDITOR_OPTIONS"
             :class="['editor']"
