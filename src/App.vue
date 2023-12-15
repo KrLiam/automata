@@ -10,7 +10,6 @@ const MONACO_EDITOR_OPTIONS = {
 
 <script lang="ts">
 import { defineComponent } from "vue"
-import EditorSeparator from "./components/EditorSeparator.vue"
 import MainView from "./components/MainView.vue"
 import { example_code } from "./lib/example"
 import { recover_prototypes } from "./lib/prototypes"
@@ -20,7 +19,6 @@ import CompilerWorker from "./workers/compiler?worker"
 
 export default defineComponent({
     components: {
-        EditorSeparator,
         MainView,
     },
     data() {
@@ -132,7 +130,6 @@ export default defineComponent({
             @change="editorChange"
             @mount="editorMount"
         />
-        <EditorSeparator />
         <MainView :messages="messages" :objects="objects"></MainView>
     </main>
 </template>
