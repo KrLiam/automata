@@ -6,8 +6,17 @@ const languageConfiguration: monaco.languages.LanguageConfiguration = {
     comments: {
       lineComment: "//",
       blockComment: [ "/*", "*/" ]
-    }
+    },
+    brackets: [
+        ["{", "}"],
+        ["[", "]"],
+        ["(", ")"],
+        ["'", "'"],
+        ['"', '"'],
+        ["/**", " */"]
+    ],
 }
+
 
 const languageDef: monaco.languages.IMonarchLanguage = {
     keywords,
