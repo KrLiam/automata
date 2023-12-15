@@ -36,6 +36,16 @@ import { Token, set_location } from "./tokenstream"
 import { ParseError } from "./error"
 import type { TuringShiftChar } from "./automaton"
 
+export const keywords = [
+    "finite",
+    "initial",
+    "final",
+    "turing",
+    "tapes",
+    "print",
+    "test",
+]
+
 export enum Patterns {
     finite = "finite\\b",
     initial = "initial\\b",
