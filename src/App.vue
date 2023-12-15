@@ -1,77 +1,30 @@
 <script lang="ts" setup>
-import { ref, shallowRef } from "vue"
 
 const MONACO_EDITOR_OPTIONS = {
     automaticLayout: true,
     formatOnType: true,
     formatOnPaste: true,
-    'semanticHighlighting.enabled': true
-}
-
-const expose = {
-    TokenStream,
-    SourceLocation,
-    get_default_parsers,
-    delegate,
-    FiniteAutomaton,
-    format_transition_table,
-    TuringMachine,
-    TuringTransitionMap,
-    Compiler,
-    Patterns,
-    AstRoot,
-    AstIdentifier,
-    get_class_hierarchy,
-    Evaluator,
-    Scope,
-    Visitor,
-    rule,
-    Rule,
-    underline_code,
-    XMLParser,
-    convert_turing_xml,
-    test,
-}
-for (let [key, value] of Object.entries(expose)) {
-    // @ts-ignore
-    window[key] = value
+    "semanticHighlighting.enabled": true,
 }
 </script>
 
 <script lang="ts">
 import { defineComponent } from "vue"
-// import EditorArea from './components/EditorArea.vue'
 import EditorSeparator from "./components/EditorSeparator.vue"
 import MainView from "./components/MainView.vue"
-
-import { InvalidSyntax, TokenStream, SourceLocation } from "./lib/tokenstream"
-import { get_default_parsers, delegate, Patterns } from "./lib/parser"
-import {
-    FiniteAutomaton,
-    TuringMachine,
-    format_transition_table,
-    TuringTransitionMap,
-} from "./lib/automaton"
-import { Compiler, CompilationError, underline_code } from "./lib/compiler"
-import { AstRoot, AstIdentifier } from "./lib/ast"
-import { get_class_hierarchy, Visitor, Rule, rule } from "./lib/visitor"
-import { Scope, Evaluator, EvaluationError } from "./lib/evaluator"
-import { convert_turing_xml } from "./lib/export"
-import { test } from "./lib/expose"
 import { example_code } from "./lib/example"
-import { XMLParser } from "fast-xml-parser"
 import { recover_prototypes } from "./lib/prototypes"
 import { mount as editorMount } from "./lib/language"
+import { expose, exposed_default } from "./lib/expose"
 import CompilerWorker from "./workers/compiler?worker"
 
 export default defineComponent({
     components: {
-        // EditorArea
         EditorSeparator,
         MainView,
     },
     data() {
-        const source = localStorage.editorSource
+        const source = localStorage.editorSource as string
         return {
             compiler: null as Worker | null,
             compilerBusy: false,
@@ -85,6 +38,8 @@ export default defineComponent({
         }
     },
     mounted() {
+        expose(exposed_default)
+        
         this.restartCompiler()
         setTimeout(() => this.compile(this.code), 1000)
     },
@@ -147,19 +102,18 @@ export default defineComponent({
                     this.objects[name] = value
                 }
 
-                // @ts-ignore
-                window.$ast = ast
-                // @ts-ignore
-                window.$tokens = tokens
-                // @ts-ignore
-                window.$scope = scope
+                expose({$ast: ast, $tokens: tokens, $scope: scope})
 
                 this.compilerBusy = false
             } else if (data.type === "fail") {
                 this.log("error", data.message)
                 this.compilerBusy = false
             } else if (data.type === "log") {
-                this.log(data.level ?? "info", data.message, data.resetLine ? true : false)
+                this.log(
+                    data.level ?? "info",
+                    data.message,
+                    data.resetLine ? true : false,
+                )
             }
         },
     },
