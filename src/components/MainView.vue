@@ -1,24 +1,32 @@
 <template>
-    <div class="content">
-        <div class="top">
-            <div class="menu">
-                <ul class="objects">
-                    <li
-                        class="element"
-                        v-for="[name, value] in Object.entries(objects)"
-                        :key="name"
-                    >
-                        <span>{{ name }}</span>
-                        <button @click="export_jflap(name, value.value)">
-                            Export
-                        </button>
-                    </li>
-                </ul>
-            </div>
-            <div class="view"></div>
-        </div>
-        <OutputMessages :messages="messages"></OutputMessages>
-    </div>
+    <SplitView class="content" :direction="'vertical'">
+        <template v-slot:left>
+            <SplitView :direction="'horizontal'" class="top" :pixels="true" :min_left="300">
+                <template v-slot:left>
+                    <div class="menu">
+                        <ul class="objects">
+                            <li
+                                class="element"
+                                v-for="[name, value] in Object.entries(objects)"
+                                :key="name"
+                            >
+                                <span>{{ name }}</span>
+                                <button @click="export_jflap(name, value.value)">
+                                    Export
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
+                </template>
+                <template v-slot:right>
+                    <div class="view"></div>
+                </template>
+            </SplitView>
+        </template>
+        <template v-slot:right>
+            <OutputMessages class="output" :messages="messages"></OutputMessages>
+        </template>
+    </SplitView>
 </template>
 
 <script lang="ts" setup>
@@ -33,6 +41,7 @@ defineProps<{
 <script lang="ts">
 import { defineComponent, defineProps } from "vue"
 import OutputMessages from "../components/OutputMessages.vue"
+import SplitView from "../components/SplitView.vue"
 import { LangObject } from "../lib/evaluator"
 import { TuringMachine } from "../lib/automaton"
 import { convert_turing_xml } from "../lib/export"
@@ -40,6 +49,7 @@ import { convert_turing_xml } from "../lib/export"
 export default defineComponent({
     components: {
         OutputMessages,
+        SplitView,
     },
     methods: {
         download(filename: string, text: string) {
@@ -84,7 +94,7 @@ export default defineComponent({
 }
 
 .top .menu {
-    width: 15em;
+    width: 100%;
     background: var(--background-lighter);
     height: 100%;
     color: var(--white);
@@ -108,5 +118,9 @@ export default defineComponent({
     display: flex;
     flex-direction: row;
     justify-content: space-between;
+}
+
+.output {
+    height: 100%;
 }
 </style>

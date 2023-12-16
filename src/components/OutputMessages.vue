@@ -48,6 +48,7 @@ export default defineComponent({
 .output {
     padding: 1em;
     height: 15em;
+    max-width: 100%;
 
     white-space: pre-wrap;
     overflow: scroll;

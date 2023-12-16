@@ -11,6 +11,7 @@ const MONACO_EDITOR_OPTIONS = {
 <script lang="ts">
 import { defineComponent } from "vue"
 import MainView from "./components/MainView.vue"
+import SplitView from "./components/SplitView.vue"
 import { example_code } from "./lib/example"
 import { recover_prototypes } from "./lib/prototypes"
 import { mount as editorMount } from "./lib/language"
@@ -19,15 +20,14 @@ import CompilerWorker from "./workers/compiler?worker"
 
 export default defineComponent({
     components: {
-        MainView,
+        // MainView,
+        SplitView,
     },
     data() {
         const source = localStorage.editorSource as string
         return {
             compiler: null as Worker | null,
             compilerBusy: false,
-            editorWidth: "50%",
-            editorHeight: "100%",
             timeout: null as number | null,
             changeInterval: 500,
             code: source ? source : example_code,
@@ -120,17 +120,23 @@ export default defineComponent({
 
 <template>
     <main>
-        <vue-monaco-editor
-            v-model:value="code"
-            language="automata"
-            :options="MONACO_EDITOR_OPTIONS"
-            :class="['editor']"
-            :width="editorWidth"
-            :height="editorHeight"
-            @change="editorChange"
-            @mount="editorMount"
-        />
-        <MainView :messages="messages" :objects="objects"></MainView>
+        <SplitView :direction="'horizontal'" :min_left="0.001">
+            <template v-slot:left>
+                <vue-monaco-editor
+                    v-model:value="code"
+                    language="automata"
+                    :options="MONACO_EDITOR_OPTIONS"
+                    :class="['editor']"
+                    :width="'100%'"
+                    :height="'100%'"
+                    @change="editorChange"
+                    @mount="editorMount"
+                />
+            </template>
+            <template v-slot:right>
+                <MainView :messages="messages" :objects="objects"></MainView>
+            </template>
+        </SplitView>
     </main>
 </template>
 
@@ -168,11 +174,6 @@ main,
     max-height: 100%;
 }
 
-.editor {
-    font-family: "Droid Sans Mono", "monospace";
-    color: var(--light-gray);
-}
-
 main {
     display: flex;
     width: 100vw;
@@ -180,4 +181,10 @@ main {
     justify-content: space-between;
     align-items: center;
 }
+
+.editor {
+    font-family: "Droid Sans Mono", "monospace";
+    color: var(--light-gray);
+}
+
 </style>
