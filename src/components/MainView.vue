@@ -5,8 +5,8 @@
                 class="main-top"
                 :direction="'horizontal'"
                 :pixels="true"
-                :min_left="300"
-                :initial="300"
+                :min_left="250"
+                :initial="250"
                 :separator_size="15"
             >
                 <template v-slot:left>

@@ -69,8 +69,8 @@ export default defineComponent({
 
     max-height: 100%;
     overflow-y: scroll;
+    word-wrap: break-word;
 }
-
 .objects {
     list-style-type: none;
 
@@ -83,16 +83,31 @@ export default defineComponent({
 }
 .objects > li {
     padding: 0.5em 1em;
+    position: relative;
 }
-.objects > li:hover {
-    background: var(--background-20);
+
+.objects > li:hover::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.4);
     cursor: pointer;
 }
 
 .menu-top {
     display: flex;
+    width: 100%;
     align-items: center;
-    gap: 0.5em;
+    overflow: hidden;
+}
+.menu-top > .name {
+    margin-left: 1em;
+    width: calc(100% - 4.5em);
+    word-wrap: break-word;
+    flex-grow: 1;
 }
 .menu-top > .return {
     padding: 0.5em 1.25em;
