@@ -1,22 +1,21 @@
 <template>
-    <SplitView class="content" :direction="'vertical'">
+    <SplitView class="main-content" :direction="'vertical'" :separator_size="20">
         <template v-slot:left>
-            <SplitView :direction="'horizontal'" class="top" :pixels="true" :min_left="300">
+            <SplitView
+                class="main-top"
+                :direction="'horizontal'"
+                :pixels="true"
+                :min_left="300"
+                :initial="300"
+                :separator_size="15"
+            >
                 <template v-slot:left>
-                    <div class="menu">
-                        <ul class="objects">
-                            <li
-                                class="element"
-                                v-for="[name, value] in Object.entries(objects)"
-                                :key="name"
-                            >
-                                <span>{{ name }}</span>
-                                <button @click="export_jflap(name, value.value)">
-                                    Export
-                                </button>
-                            </li>
-                        </ul>
-                    </div>
+                    <SelectMenu
+                        class="select-menu"
+                        :elements="menuElements"
+                        @select="select"
+                        @unselect="unselect"
+                    ></SelectMenu>
                 </template>
                 <template v-slot:right>
                     <div class="view"></div>
@@ -40,8 +39,9 @@ defineProps<{
 
 <script lang="ts">
 import { defineComponent, defineProps } from "vue"
-import OutputMessages from "../components/OutputMessages.vue"
-import SplitView from "../components/SplitView.vue"
+import OutputMessages from "./OutputMessages.vue"
+import SplitView from "./SplitView.vue"
+import SelectMenu, { type SelectElement, type SelectEvent } from "./SelectMenu.vue"
 import { LangObject } from "../lib/evaluator"
 import { TuringMachine } from "../lib/automaton"
 import { convert_turing_xml } from "../lib/export"
@@ -51,6 +51,17 @@ export default defineComponent({
         OutputMessages,
         SplitView,
     },
+    computed: {
+        menuElements(): SelectElement<LangObject>[] {
+            return Object.entries(this.objects).map(([name, value]) => ({
+                name,
+                value,
+            }))
+        },
+    },
+    data: () => ({
+        selected: null as SelectElement<LangObject> | null,
+    }),
     methods: {
         download(filename: string, text: string) {
             const element = document.createElement("a")
@@ -74,50 +85,37 @@ export default defineComponent({
                 this.download(`${name}.jff`, str)
             }
         },
+
+        select(event: SelectEvent) {
+            this.selected = event.element
+        },
+        unselect() {
+            this.selected = null
+        },
     },
 })
 </script>
 
-<style scoped>
-.content {
+<style>
+.main-content {
     flex-grow: 1;
     max-height: 100vh;
     height: 100%;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    font-family: "Droid Sans Mono", "monospace";
 }
 
-.content .top {
-    flex-grow: 1;
+.main-top > .separator {
+    background: var(--background-15);
 }
 
-.top .menu {
-    width: 100%;
-    background: var(--background-lighter);
-    height: 100%;
-    color: var(--white);
-
-    max-height: 100%;
-    overflow-y: scroll;
+.main-content > .separator {
+    background: var(--background-13);
 }
 
-.menu .objects {
-    list-style-type: none;
-
-    display: flex;
-    flex-direction: column;
-    margin: 0;
-    padding: 0;
-}
-.menu .objects > * {
-    padding: 0.5em 0.1em;
-}
-.menu .objects .element {
-    display: flex;
-    flex-direction: row;
-    justify-content: space-between;
+.select-menu {
+    padding: 15px 0 0 15px;
 }
 
 .output {

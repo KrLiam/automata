@@ -47,8 +47,6 @@ export default defineComponent({
 <style scoped>
 .output {
     padding: 1em;
-    height: 15em;
-    max-width: 100%;
 
     white-space: pre-wrap;
     overflow: scroll;
@@ -59,7 +57,7 @@ export default defineComponent({
     flex-direction: column;
 
     color: var(--white);
-    background: var(--area-background);
+    background: var(--background-13);
 }
 .output-message.error {
     color: var(--error);

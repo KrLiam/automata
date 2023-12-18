@@ -170,7 +170,7 @@ export class Scope {
         return binding.defined
     }
 
-    *[Symbol.iterator]() {
+    *[Symbol.iterator](): Generator<[string, any]> {
         for (let [name, binding] of Object.entries(this.bindings)) {
             if (binding.defined && !name.startsWith("$")) {
                 yield [name, binding.unwrap()]
@@ -448,7 +448,7 @@ export class Evaluator extends Visitor<AstNode, Scope, void> {
         for (let i = 0; i < entries.length; i++) {
             const entry = entries[i]
             const line = `${i + 1}. "${entry.value}" `
-            
+
             log(scope, "info", line + "Running")
 
             const accepted = value.test(entry.value)
@@ -467,7 +467,12 @@ export class Evaluator extends Visitor<AstNode, Scope, void> {
     }
 }
 
-function log(scope: Scope, level: string, message: string, resetLine: boolean = false) {
+function log(
+    scope: Scope,
+    level: string,
+    message: string,
+    resetLine: boolean = false,
+) {
     if (scope.is_defined("$post", true)) {
         const post = scope.value("$post")
         post({ type: "log", level, message, resetLine })

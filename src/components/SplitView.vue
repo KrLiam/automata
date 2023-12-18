@@ -1,10 +1,10 @@
 <template>
-    <div class="container" ref="container" :style="{'flex-direction': containerDirection}">
-        <div
-            class="left"
-            :style="leftStyle"
-            ref="left"
-        >
+    <div
+        class="container"
+        ref="container"
+        :style="{ 'flex-direction': containerDirection }"
+    >
+        <div class="left" :style="leftStyle" ref="left">
             <slot name="left"></slot>
         </div>
         <div
@@ -13,11 +13,7 @@
             :style="separatorStyle"
             @mousedown="mouseDown"
         ></div>
-        <div
-            class="right"
-            ref="right"
-            :style="rightStyle"
-        >
+        <div class="right" ref="right" :style="rightStyle">
             <slot name="right"></slot>
         </div>
     </div>
@@ -26,7 +22,7 @@
 <script lang="ts" setup>
 withDefaults(
     defineProps<{
-        direction: "horizontal" | "vertical",
+        direction: "horizontal" | "vertical"
         pixels?: boolean
         initial?: number | null
         min_left?: number
@@ -39,7 +35,7 @@ withDefaults(
         min_left: 0.001,
         min_right: 0,
         separator_size: 15,
-    }
+    },
 )
 </script>
 
@@ -67,19 +63,19 @@ export default defineComponent({
     },
     computed: {
         leftStyle() {
-            return this.direction === "horizontal" ?
-                {width: this.leftSize} :
-                {height: this.leftSize}
+            return this.direction === "horizontal"
+                ? { width: this.leftSize }
+                : { height: this.leftSize }
         },
         rightStyle() {
-            return this.direction === "horizontal" ?
-                {width: this.rightSize} :
-                {height: this.rightSize}
+            return this.direction === "horizontal"
+                ? { width: this.rightSize }
+                : { height: this.rightSize }
         },
         separatorStyle() {
-            return this.direction === "horizontal" ?
-                {width: this.separatorSize, cursor: "ew-resize"} :
-                {height: this.separatorSize, cursor: "ns-resize"}
+            return this.direction === "horizontal"
+                ? { width: this.separatorSize, cursor: "ew-resize" }
+                : { height: this.separatorSize, cursor: "ns-resize" }
         },
         containerDirection() {
             return this.direction === "horizontal" ? "row" : "column"
@@ -91,7 +87,7 @@ export default defineComponent({
             if (this.pixels) {
                 return `${this.split}px`
             }
-            return `${this.split}%`;
+            return `${this.split}%`
         },
         rightSize() {
             if (!this.split) return `calc(50% - ${this.separator_size}px)`
@@ -99,11 +95,11 @@ export default defineComponent({
             if (this.pixels) {
                 return "auto"
             }
-            return `calc(${100 - this.split}% - ${this.separator_size}px)`;
+            return `calc(${100 - this.split}% - ${this.separator_size}px)`
         },
         separatorSize() {
             return `${this.separator_size}px`
-        }
+        },
     },
     mounted() {
         this.container = this.$refs.container as HTMLDivElement
@@ -111,8 +107,6 @@ export default defineComponent({
         this.right = this.$refs.right as HTMLDivElement
         this.separator = this.$refs.separator as HTMLDivElement
 
-        this.separator.addEventListener("mousedown", this.mouseDown.bind(this))
-        
         window.addEventListener("load", () => {
             const rect = this.container.getBoundingClientRect()
             const value = this.direction === "horizontal" ? rect.width : rect.height
@@ -126,47 +120,50 @@ export default defineComponent({
             this.clickPos = this.direction === "horizontal" ? ev.clientX : ev.clientY
 
             const rect = this.left.getBoundingClientRect()
-            this.clickSize = this.direction === "horizontal" ? rect.width : rect.height
+            this.clickSize =
+                this.direction === "horizontal" ? rect.width : rect.height
 
             // Attach the listeners to `document`
-            document.addEventListener('mousemove', this.moveHandler)
-            document.addEventListener('mouseup', this.upHandler)
+            document.addEventListener("mousemove", this.moveHandler)
+            document.addEventListener("mouseup", this.upHandler)
         },
         mouseMove(ev: MouseEvent) {
             const rect = this.container.getBoundingClientRect()
-            const container_size = this.direction === "horizontal" ? rect.width : rect.height
+            const container_size =
+                this.direction === "horizontal" ? rect.width : rect.height
 
-            const mouse_pos = this.direction === "horizontal" ? ev.clientX : ev.clientY
+            const mouse_pos =
+                this.direction === "horizontal" ? ev.clientX : ev.clientY
             const delta = mouse_pos - this.clickPos
 
             let value: number
             if (this.pixels) {
                 value = this.clickSize + delta
-            }
-            else {
-                value = (this.clickSize + delta) / container_size * 100
+            } else {
+                value = ((this.clickSize + delta) / container_size) * 100
             }
 
             const separator_percent = this.separator_size / container_size
-            const max_split = this.pixels ?
-                container_size - this.minRight :
-                100 - separator_percent - this.minRight
+            const max_split = this.pixels
+                ? container_size - this.minRight
+                : 100 - separator_percent - this.minRight
             this.split = Math.min(max_split, Math.max(value, this.minLeft))
 
-            const cursor = this.direction === "horizontal" ? "col-resize" : "row-resize"
-            document.body.style.cursor = cursor;
+            const cursor =
+                this.direction === "horizontal" ? "col-resize" : "row-resize"
+            document.body.style.cursor = cursor
 
-            this.container.style.userSelect = 'none';
-            this.container.style.pointerEvents = 'none';
+            this.container.style.userSelect = "none"
+            this.container.style.pointerEvents = "none"
         },
         mouseUp() {
-            document.body.style.removeProperty('cursor');
+            document.body.style.removeProperty("cursor")
 
-            this.container.style.removeProperty('user-select');
-            this.container.style.removeProperty('pointer-events');
+            this.container.style.removeProperty("user-select")
+            this.container.style.removeProperty("pointer-events")
 
-            document.removeEventListener('mousemove', this.moveHandler);
-            document.removeEventListener('mouseup', this.upHandler);
+            document.removeEventListener("mousemove", this.moveHandler)
+            document.removeEventListener("mouseup", this.upHandler)
         },
     },
 })

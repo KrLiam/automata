@@ -1,5 +1,4 @@
 <script lang="ts" setup>
-
 const MONACO_EDITOR_OPTIONS = {
     automaticLayout: true,
     formatOnType: true,
@@ -17,10 +16,12 @@ import { recover_prototypes } from "./lib/prototypes"
 import { mount as editorMount } from "./lib/language"
 import { expose, exposed_default } from "./lib/expose"
 import CompilerWorker from "./workers/compiler?worker"
+import type { LangObject } from "./lib/evaluator"
+import type { CompileSuccessResponse } from "./workers/compiler"
 
 export default defineComponent({
     components: {
-        // MainView,
+        MainView,
         SplitView,
     },
     data() {
@@ -32,12 +33,12 @@ export default defineComponent({
             changeInterval: 500,
             code: source ? source : example_code,
             messages: [] as any[],
-            objects: {},
+            objects: {} as { [name: string]: LangObject },
         }
     },
     mounted() {
         expose(exposed_default)
-        
+
         this.restartCompiler()
         setTimeout(() => this.compile(this.code), 1000)
     },
@@ -90,17 +91,17 @@ export default defineComponent({
             const data = recover_prototypes(event.data)
 
             if (data.type === "success") {
-                const { ast, tokens, scope, time_taken } = data
+                const { ast, tokens, scope, time_taken } =
+                    data as CompileSuccessResponse
 
                 this.log("success", `Done in ${time_taken}ms!`)
 
                 this.objects = {}
                 for (const [name, value] of scope) {
-                    // @ts-ignore
                     this.objects[name] = value
                 }
 
-                expose({$ast: ast, $tokens: tokens, $scope: scope})
+                expose({ $ast: ast, $tokens: tokens, $scope: scope })
 
                 this.compilerBusy = false
             } else if (data.type === "fail") {
@@ -120,7 +121,12 @@ export default defineComponent({
 
 <template>
     <main>
-        <SplitView :direction="'horizontal'" :min_left="0.001">
+        <SplitView
+            class="main-split"
+            :direction="'horizontal'"
+            :initial="45"
+            :separator_size="25"
+        >
             <template v-slot:left>
                 <vue-monaco-editor
                     v-model:value="code"
@@ -151,16 +157,19 @@ export default defineComponent({
 
     --error: #f48771;
     --success: #64fa61;
-    --background-lighter: #232323;
-    --area-background: #212121;
-    --background: #181818;
-    --separator-background: #252526;
+    --background-9: #181818;
+    --background-12: #1e1e1e;
+    --background-13: #212121;
+    --background-15: #252525;
+    --background-20: #333333;
+    --select: #607fef;
+    --detail-15: #3a3a3a;
 }
 
 body {
     font-size: 16px;
     color: black;
-    background: var(--background);
+    background: var(--background-9);
 }
 
 main,
@@ -180,11 +189,15 @@ main {
     flex-direction: row;
     justify-content: space-between;
     align-items: center;
+    font-family: "Droid Sans Mono", "monospace";
+}
+
+.main-split > .separator {
+    background: var(--background-12);
+    border-left: var(--detail-15) solid 0.1em;
 }
 
 .editor {
-    font-family: "Droid Sans Mono", "monospace";
     color: var(--light-gray);
 }
-
 </style>
