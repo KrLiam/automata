@@ -12,6 +12,7 @@
             ref="separator"
             :style="separatorStyle"
             @mousedown="mouseDown"
+            @touchstart="touchStart"
         ></div>
         <div class="right" ref="right" :style="rightStyle">
             <slot name="right"></slot>
@@ -51,9 +52,11 @@ export default defineComponent({
 
             clickPos: 0,
             clickSize: 0,
+            touchId: -1,
 
             moveHandler: this.mouseMove.bind(this),
-            upHandler: this.mouseUp.bind(this),
+            endHandler: this.end.bind(this),
+            touchMoveHandler: this.touchMove.bind(this),
 
             container: {} as HTMLDivElement,
             left: {} as HTMLDivElement,
@@ -115,9 +118,18 @@ export default defineComponent({
         })
     },
     methods: {
+        touchStart(ev: TouchEvent) {
+            const [touch, ..._] = Object.values(ev.touches)
+            this.touchId = touch.identifier
+
+            this.start(this.direction === "horizontal" ? touch.clientX : touch.clientY)
+        },
         mouseDown(ev: MouseEvent) {
-            // Get the current mouse position
-            this.clickPos = this.direction === "horizontal" ? ev.clientX : ev.clientY
+            this.touchId = -1
+            this.start(this.direction === "horizontal" ? ev.clientX : ev.clientY)
+        },
+        start(pos: number) {
+            this.clickPos = pos
 
             const rect = this.left.getBoundingClientRect()
             this.clickSize =
@@ -125,16 +137,41 @@ export default defineComponent({
 
             // Attach the listeners to `document`
             document.addEventListener("mousemove", this.moveHandler)
-            document.addEventListener("mouseup", this.upHandler)
+            document.addEventListener("mouseup", this.endHandler)
+            document.addEventListener("touchmove", this.touchMoveHandler)
+            document.addEventListener("touchend", this.endHandler)
+            document.addEventListener("touchcancel", this.endHandler)
+
+            const cursor =
+                this.direction === "horizontal" ? "col-resize" : "row-resize"
+            document.body.style.cursor = cursor
+
+            this.container.style.userSelect = "none"
+            this.container.style.pointerEvents = "none"
+        },
+
+        touchMove(ev: TouchEvent) {
+            for (let touch of Object.values(ev.changedTouches)) {
+                if (touch.identifier != this.touchId) continue
+
+                const pos = this.direction === "horizontal" ? touch.clientX : touch.clientY
+                this.move(pos - this.clickPos)
+
+                ev.preventDefault()
+                return
+            }
         },
         mouseMove(ev: MouseEvent) {
-            const rect = this.container.getBoundingClientRect()
-            const container_size =
-                this.direction === "horizontal" ? rect.width : rect.height
-
             const mouse_pos =
                 this.direction === "horizontal" ? ev.clientX : ev.clientY
             const delta = mouse_pos - this.clickPos
+
+            this.move(delta)
+        },
+        move(delta: number) {
+            const rect = this.container.getBoundingClientRect()
+            const container_size =
+                this.direction === "horizontal" ? rect.width : rect.height
 
             let value: number
             if (this.pixels) {
@@ -148,22 +185,19 @@ export default defineComponent({
                 ? container_size - this.minRight
                 : 100 - separator_percent - this.minRight
             this.split = Math.min(max_split, Math.max(value, this.minLeft))
-
-            const cursor =
-                this.direction === "horizontal" ? "col-resize" : "row-resize"
-            document.body.style.cursor = cursor
-
-            this.container.style.userSelect = "none"
-            this.container.style.pointerEvents = "none"
         },
-        mouseUp() {
+        
+        end() {
             document.body.style.removeProperty("cursor")
 
             this.container.style.removeProperty("user-select")
             this.container.style.removeProperty("pointer-events")
 
             document.removeEventListener("mousemove", this.moveHandler)
-            document.removeEventListener("mouseup", this.upHandler)
+            document.removeEventListener("mouseup", this.endHandler)
+            document.removeEventListener("touchmove", this.touchMoveHandler)
+            document.removeEventListener("touchend", this.endHandler)
+            document.removeEventListener("touchcancel", this.endHandler)
         },
     },
 })
