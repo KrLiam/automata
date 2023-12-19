@@ -166,10 +166,14 @@ export default defineComponent({
     --detail-15: #3a3a3a;
 }
 
+html {
+    overscroll-behavior: contain;
+}
 body {
     font-size: 16px;
     color: black;
     background: var(--background-9);
+    overscroll-behavior: contain;
 }
 
 main,
