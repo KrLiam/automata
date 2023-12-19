@@ -213,6 +213,7 @@ export default defineComponent({
     overflow: hidden;
     padding: 0;
     margin: 0;
+    overscroll-behavior: contain;
 }
 .container > .left {
     width: 100%;
