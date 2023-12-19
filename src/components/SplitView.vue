@@ -67,8 +67,8 @@ export default defineComponent({
     computed: {
         leftStyle() {
             return this.direction === "horizontal"
-                ? { width: this.leftSize }
-                : { height: this.leftSize }
+                ? { width: this.leftSize, "max-width": this.maxLeftSize }
+                : { height: this.leftSize, "max-height": this.maxLeftSize }
         },
         rightStyle() {
             return this.direction === "horizontal"
@@ -85,12 +85,16 @@ export default defineComponent({
         },
 
         leftSize() {
+            console.log("left size")
             if (!this.split) return "50%"
-
+            
             if (this.pixels) {
                 return `${this.split}px`
             }
             return `${this.split}%`
+        },
+        maxLeftSize() {
+            return `calc(100% - ${this.separator_size}px)`
         },
         rightSize() {
             if (!this.split) return `calc(50% - ${this.separator_size}px)`
