@@ -85,9 +85,8 @@ export default defineComponent({
         },
 
         leftSize() {
-            console.log("left size")
             if (!this.split) return "50%"
-            
+
             if (this.pixels) {
                 return `${this.split}px`
             }
@@ -126,7 +125,9 @@ export default defineComponent({
             const [touch, ..._] = Object.values(ev.touches)
             this.touchId = touch.identifier
 
-            this.start(this.direction === "horizontal" ? touch.clientX : touch.clientY)
+            this.start(
+                this.direction === "horizontal" ? touch.clientX : touch.clientY,
+            )
         },
         mouseDown(ev: MouseEvent) {
             this.touchId = -1
@@ -158,7 +159,8 @@ export default defineComponent({
             for (let touch of Object.values(ev.changedTouches)) {
                 if (touch.identifier != this.touchId) continue
 
-                const pos = this.direction === "horizontal" ? touch.clientX : touch.clientY
+                const pos =
+                    this.direction === "horizontal" ? touch.clientX : touch.clientY
                 this.move(pos - this.clickPos)
 
                 ev.preventDefault()
@@ -190,7 +192,7 @@ export default defineComponent({
                 : 100 - separator_percent - this.minRight
             this.split = Math.min(max_split, Math.max(value, this.minLeft))
         },
-        
+
         end() {
             document.body.style.removeProperty("cursor")
 

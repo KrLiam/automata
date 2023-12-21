@@ -20,18 +20,17 @@
 </template>
 
 <script lang="ts" setup>
-export interface SelectElement<T> {
+export interface SelectElement {
     name: string
-    value: T
 }
 
 export type SelectEvent = {
-    element: SelectElement<any>
+    element: SelectElement
     index: number
 }
 
 defineProps<{
-    elements: SelectElement<any>[]
+    elements: SelectElement[]
 }>()
 defineEmits<{
     (e: "select", event: SelectEvent): void
@@ -45,8 +44,18 @@ import { defineComponent, defineProps } from "vue"
 export default defineComponent({
     components: {},
     data: () => ({
-        selected: null as SelectElement<any> | null,
+        selected: null as SelectElement | null,
     }),
+    watch: {
+        elements() {
+            const selected = this.selected
+            if (!selected) return
+
+            if (!this.elements.some((el) => el.name === selected.name)) {
+                this.unselect()
+            }
+        },
+    },
     methods: {
         select(index: number) {
             this.selected = this.elements[index]
@@ -87,7 +96,7 @@ export default defineComponent({
 }
 
 .objects > li:hover::before {
-    content: '';
+    content: "";
     position: absolute;
     top: 0;
     left: 0;

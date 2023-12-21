@@ -1,6 +1,12 @@
 import { XMLParser } from "fast-xml-parser"
 import { AstRoot, AstIdentifier } from "./ast"
-import { FiniteAutomaton, TuringTransitionMap, format_transition_table, type State, TuringMachine } from "./automaton"
+import {
+    FiniteAutomaton,
+    TuringTransitionMap,
+    format_transition_table,
+    type State,
+    TuringMachine,
+} from "./automaton"
 import { Compiler, underline_code } from "./compiler"
 import { Evaluator, Scope } from "./evaluator"
 import { convert_turing_xml } from "./export"
@@ -29,7 +35,7 @@ export const exposed_default = {
     test,
 }
 
-export function expose(values: {[name: string]: any}) {
+export function expose(values: { [name: string]: any }) {
     for (let [key, value] of Object.entries(values)) {
         // @ts-ignore
         window[key] = value

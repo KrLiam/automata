@@ -203,6 +203,6 @@ main {
 
 .editor {
     color: var(--light-gray);
-    background: var(--background-12)
+    background: var(--background-12);
 }
 </style>

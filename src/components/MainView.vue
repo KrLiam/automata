@@ -18,7 +18,13 @@
                     ></SelectMenu>
                 </template>
                 <template v-slot:right>
-                    <div class="view"></div>
+                    <GraphVisualizer
+                        :value="graph"
+                        @mounted="canvas = $event.canvas"
+                        @updated-graph="
+                            selected ? save_graph(selected.name, graph) : null
+                        "
+                    ></GraphVisualizer>
                 </template>
             </SplitView>
         </template>
@@ -41,18 +47,28 @@ defineProps<{
 import { defineComponent, defineProps } from "vue"
 import OutputMessages from "./OutputMessages.vue"
 import SplitView from "./SplitView.vue"
+import GraphVisualizer from "./GraphVisualizer.vue"
 import SelectMenu, { type SelectElement, type SelectEvent } from "./SelectMenu.vue"
 import { LangObject } from "../lib/evaluator"
 import { TuringMachine } from "../lib/automaton"
 import { convert_turing_xml } from "../lib/export"
+import {
+    make_graph,
+    random_position,
+    type GraphData,
+    Canvas,
+    type Vector2,
+} from "../lib/graph"
 
 export default defineComponent({
     components: {
         OutputMessages,
+        GraphVisualizer,
+        SelectMenu,
         SplitView,
     },
     computed: {
-        menuElements(): SelectElement<LangObject>[] {
+        menuElements(): SelectElement[] {
             return Object.entries(this.objects).map(([name, value]) => ({
                 name,
                 value,
@@ -60,9 +76,57 @@ export default defineComponent({
         },
     },
     data: () => ({
-        selected: null as SelectElement<LangObject> | null,
+        selected: null as SelectElement | null,
+        graph: make_graph(),
+        canvas: null as Canvas | null,
     }),
+    mounted() {},
+    watch: {
+        objects() {
+            this.update_graph()
+        },
+        selected() {
+            this.update_graph()
+        },
+    },
     methods: {
+        get_graph(name: string): GraphData | null {
+            let graphs: { [name: string]: GraphData } = JSON.parse(
+                localStorage.saved_graphs ?? "{}",
+            )
+            return graphs[name] ?? null
+        },
+        save_graph(name: string, graph: GraphData) {
+            console.log("updated", graph)
+            let graphs: { [name: string]: GraphData } = JSON.parse(
+                localStorage.saved_graphs ?? "{}",
+            )
+            graphs[name] = graph
+            localStorage.saved_graphs = JSON.stringify(graphs)
+        },
+        update_graph() {
+            if (!this.selected) {
+                this.graph = make_graph()
+                return
+            }
+
+            const name = this.selected.name
+            const obj = this.objects[name]
+            if (!obj) return
+
+            const saved = this.get_graph(this.selected.name) ?? make_graph()
+            this.graph = make_graph(
+                obj.value,
+                (node) => saved.nodes[node] ?? this.generate_node_pos(),
+            )
+
+            this.save_graph(this.selected.name, this.graph)
+        },
+        generate_node_pos(): Vector2 {
+            const rect = this.canvas?.rect ?? { width: 500, height: 500 }
+            return random_position([0, 0], [rect.width, rect.height])
+        },
+
         download(filename: string, text: string) {
             const element = document.createElement("a")
             element.setAttribute(
