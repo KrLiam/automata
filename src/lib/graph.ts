@@ -1,12 +1,64 @@
 import { TuringMachine, type State, FiniteAutomaton } from "../lib/automaton"
 
+export function lerp(a: number, b: number, value: number): number {
+    return a*(1 - value) + b*value
+}
+
 export type Vector2 = [number, number]
 
-export function straddle_vector([x, y]: Vector2): Vector2 {
-    return [Math.floor(x) + 0.5, Math.floor(y) + 0.5]
-}
-export function square_distance(v: Vector2, u: Vector2) {
-    return (v[0] - u[0]) ** 2 + (v[1] - u[1]) ** 2
+export const vec = {
+    lerp(a: Vector2, b: Vector2, value: number): Vector2 {
+        return [
+            lerp(a[0] , b[0], value),
+            lerp(a[1] , b[1], value),
+        ]
+    },
+    straddle([x, y]: Vector2): Vector2 {
+        return [Math.floor(x) + 0.5, Math.floor(y) + 0.5]
+    },
+    square_distance(v: Vector2, u: Vector2) {
+        return (v[0] - u[0]) ** 2 + (v[1] - u[1]) ** 2
+    },
+    distance(v: Vector2, u: Vector2): number {
+        return Math.sqrt(vec.square_distance(v, u))
+    },
+    normalized(vector: Vector2): Vector2 {
+        const dist = vec.distance(vector, [0, 0])
+        return [vector[0] / dist, vector[1] / dist]
+    },
+    negated([x, y]: Vector2): Vector2 {
+        return [-x, -y]
+    },
+    sum(v: Vector2, u: Vector2 | number): Vector2 {
+        if (typeof u === "number") {
+            return [v[0] + u, v[1] + u]
+        }
+        return [v[0] + u[0], v[1] + u[1]]
+    },
+    diff(v: Vector2, u: Vector2 | number): Vector2 {
+        if (typeof u === "number") {
+            return [v[0] - u, v[1] - u]
+        }
+        return [v[0] - u[0], v[1] - u[1]]
+    },
+    prod(vector: Vector2, scalar: number): Vector2 {
+        return [vector[0] * scalar, vector[1] * scalar]
+    },
+    rotated_right([x, y]: Vector2): Vector2 {
+        return [y, -x]
+    },
+    faced_up([x, y]: Vector2): Vector2 {
+        if (y == 0) {
+            return x < 0 ? [-x, -y] : [x, y]
+        }
+        return y > 0 ? [-x, -y] : [x, y]
+    },
+    faced_down([x, y]: Vector2): Vector2 {
+        if (y == 0) {
+            return x > 0 ? [-x, -y] : [x, y]
+        }
+        return y < 0 ? [-x, -y] : [x, y]
+    },
 }
 
 export interface CanvasConfig {
@@ -86,9 +138,9 @@ export class Canvas {
     }: {
         pos: Vector2
         radius: number
-        width: number
-        color: string
-        alpha: number
+        width?: number
+        color?: string
+        alpha?: number
     }) {
         this.ctx.imageSmoothingEnabled = true
         this.ctx.globalAlpha = alpha
@@ -103,7 +155,7 @@ export class Canvas {
         pos,
         radius,
         color = "",
-        border_width = 5,
+        border_width = 0,
         border_color = "",
         alpha = 1.0,
     }: {
@@ -118,12 +170,35 @@ export class Canvas {
 
         this.ctx.lineWidth = border_width
         this.ctx.strokeStyle = border_color
-        this.ctx.fillStyle = color
         this.ctx.globalAlpha = alpha
         this.ctx.beginPath()
-        this.ctx.arc(...straddle_vector(pos), radius, 0, 2 * Math.PI)
+        this.ctx.arc(...vec.straddle(pos), radius, 0, 2 * Math.PI)
+        this.ctx.fillStyle = color
         this.ctx.fill()
         this.ctx.stroke()
+    }
+
+    triangle({
+        pos1,
+        pos2,
+        pos3,
+        color = null,
+    }: {
+        pos1: Vector2
+        pos2: Vector2
+        pos3: Vector2
+        color: string | null
+    }) {
+        this.ctx.lineWidth = 0
+        this.ctx.strokeStyle = color ?? "#ffffff"
+        this.ctx.fillStyle = color ?? "#ffffff"
+        this.ctx.globalAlpha = 1.0
+        const path = new Path2D()
+        path.moveTo(...vec.straddle(pos1))
+        path.lineTo(...vec.straddle(pos2))
+        path.lineTo(...vec.straddle(pos3))
+        this.ctx.fill(path)
+        this.ctx.stroke()  
     }
 
     line({
@@ -140,8 +215,30 @@ export class Canvas {
         this.ctx.lineWidth = width
         this.ctx.strokeStyle = color ?? "#ffffff"
         this.ctx.globalAlpha = 1.0
-        this.ctx.moveTo(...straddle_vector(pos1))
-        this.ctx.lineTo(...straddle_vector(pos2))
+        this.ctx.beginPath()
+        this.ctx.moveTo(...vec.straddle(pos1))
+        this.ctx.lineTo(...vec.straddle(pos2))
+        this.ctx.stroke()
+    }
+
+    arcTo({
+        pos1,
+        pos2,
+        radius,
+        width = 1,
+        color = null,
+    }: {
+        pos1: Vector2
+        pos2: Vector2
+        radius: number
+        width: number
+        color: string | null
+    }) {
+        this.ctx.lineWidth = width
+        this.ctx.strokeStyle = color ?? "#ffffff"
+        this.ctx.globalAlpha = 1.0
+        this.ctx.beginPath()
+        this.ctx.arcTo(...pos1, ...pos2, radius)
         this.ctx.stroke()
     }
 
@@ -191,25 +288,20 @@ export class Canvas {
         if (!family) family = this.cfg.fontFamily
         this.ctx.font = `${size}px ${family}`
 
-        const {
-            width,
-            actualBoundingBoxAscent: ascent,
-            actualBoundingBoxDescent: descent,
-        } = this.ctx.measureText(text)
-        const height = ascent + descent
+        const m = this.measureText({text, size})
 
         if (align) {
-            pos = [pos[0] - width / 2, pos[1] - (descent - ascent) / 2]
+            pos = [pos[0] - m.width / 2, pos[1] - (m.descent - m.ascent) / 2]
         }
         if (background.color) {
             const padding = background.padding ?? [0, 0]
             const bg_pos: Vector2 = [
                 pos[0] - padding[0],
-                pos[1] - ascent - padding[1],
+                pos[1] - m.ascent - padding[1],
             ]
             this.square({
                 pos: bg_pos,
-                size: [width + padding[0] * 2, height + padding[1] * 2],
+                size: [m.width + padding[0] * 2, m.height + padding[1] * 2],
                 color: background.color,
                 alpha: background.alpha,
             })
@@ -219,7 +311,9 @@ export class Canvas {
         if (color) this.ctx.fillStyle = color
         this.ctx.globalAlpha = alpha
 
-        this.ctx.fillText(text, ...straddle_vector(pos))
+        this.ctx.fillText(text, ...vec.straddle(pos))
+
+        return m
     }
 
     square({
@@ -244,6 +338,8 @@ export interface Transition {
     origin: State
     destination: State
     labels: string[]
+    label_pos: number
+    label_ontop: boolean
 }
 
 export interface GraphData {
@@ -278,7 +374,9 @@ export function make_graph(
             const labels: string[] = [
                 `${read_label} ; ${write_label} ; ${shift_label}`,
             ]
-            graph.transitions.push({ origin, destination, labels })
+            const label_pos = 0.5
+            const label_ontop = true
+            graph.transitions.push({ origin, destination, labels, label_pos, label_ontop })
         }
 
         for (const state of obj.states) {
@@ -292,7 +390,9 @@ export function make_graph(
             const [origin, read, destination] = trans
 
             const labels: string[] = [`${read}`]
-            graph.transitions.push({ origin, destination, labels })
+            const label_pos = 0.5
+            const label_ontop = true
+            graph.transitions.push({ origin, destination, labels, label_pos, label_ontop })
         }
 
         for (const state of obj.states) {

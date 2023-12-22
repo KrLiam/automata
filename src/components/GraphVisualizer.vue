@@ -21,7 +21,7 @@ defineEmits<{
 </script>
 
 <script lang="ts">
-import { type GraphData, type Vector2, Canvas, square_distance } from "../lib/graph"
+import { type GraphData, type Vector2, Canvas, vec } from "../lib/graph"
 import { defineComponent, defineProps } from "vue"
 
 export enum DragType {
@@ -81,24 +81,38 @@ export default defineComponent({
 
         frame() {
             this.resize()
-            // this.canvas.clear()
+            this.canvas.clear()
             this.canvas.offset()
             this.draw()
 
             requestAnimationFrame(this.frame.bind(this))
         },
         draw() {
+            // arcs
             for (const { origin, destination } of this.value.transitions) {
                 const origin_pos = this.value.nodes[origin]
                 const dest_pos = this.value.nodes[destination]
+
+                const direction = vec.normalized(vec.diff(origin_pos, dest_pos))
+                const height = vec.prod(direction, 15)
+                const width = vec.rotated_right(vec.prod(direction, 10))
+
+                const pos1 = vec.sum(dest_pos, vec.prod(direction, this.node_radius))
+                const line_end = vec.sum(pos1, height)
+
+                const pos2 = vec.sum(line_end, width)
+                const pos3 = vec.sum(line_end, vec.negated(width))
+
+                this.canvas.triangle({pos1, pos2, pos3, color: "#ffffff"})
                 this.canvas.line({
                     pos1: origin_pos,
-                    pos2: dest_pos,
+                    pos2: line_end,
                     width: 5,
                     color: "#ffffff",
                 })
             }
 
+            // hovered node
             if (this.hoverNode) {
                 const pos = this.value.nodes[this.hoverNode]
                 this.canvas.disk({
@@ -109,6 +123,7 @@ export default defineComponent({
                 })
             }
 
+            // nodes
             for (const [name, [x, y]] of Object.entries(this.value.nodes)) {
                 const radius = this.node_radius
 
@@ -139,6 +154,36 @@ export default defineComponent({
                     })
                 }
             }
+
+            // labels
+            for (const trans of this.value.transitions) {
+                const { origin, destination, labels, label_ontop, label_pos } = trans
+                const origin_pos = this.value.nodes[origin]
+                const dest_pos = this.value.nodes[destination]
+                
+                const mid_pos = vec.lerp(origin_pos, dest_pos, label_pos)
+                
+                const direction = vec.normalized(vec.diff(origin_pos, dest_pos))
+                const rotated = vec.rotated_right(vec.prod(direction, 20))
+                const pos = vec.sum(
+                    mid_pos,
+                    label_ontop ? vec.faced_up(rotated) : vec.faced_down(rotated)
+                )
+                this.canvas.disk({pos: mid_pos, color:"#ffffff", radius: 3})
+
+                let offset = 0
+                for (const label of labels) {
+                    const {height} = this.canvas.text({
+                        pos: vec.sum(pos, [0, label_ontop ? -offset : offset]),
+                        text: label,
+                        color: "#ffffff",
+                        size: 20,
+                        align: true,
+                        background: {alpha: 0.3, color: "#000000"}
+                    })
+                    offset += height + 5
+                }
+            }
         },
 
         mouseDown(event: MouseEvent) {
@@ -156,7 +201,6 @@ export default defineComponent({
                 this.drag.type = DragType.Canvas
                 const base = this.canvas.offset_value
                 this.drag.origin = [base[0] - pos[0], base[1] - pos[1]]
-                console.log("Start dragging canvas", [...this.drag.origin])
             }
         },
         mouseUp(event: MouseEvent) {
@@ -178,7 +222,6 @@ export default defineComponent({
                 if (this.drag.type === DragType.Node) {
                     this.value.nodes[this.drag.id] = pos
                 } else if (this.drag.type === DragType.Canvas) {
-                    console.log("drag canvas", pos)
                     this.canvas.offset(pos)
                 }
             } else {
@@ -193,7 +236,7 @@ export default defineComponent({
         check_node_overlap(pos: Vector2): string | null {
             const threshold = this.node_radius ** 2 * 1.5
             for (const [name, node_pos] of Object.entries(this.value.nodes)) {
-                const dist = square_distance(pos, node_pos)
+                const dist = vec.square_distance(pos, node_pos)
                 if (dist <= threshold) {
                     return name
                 }
