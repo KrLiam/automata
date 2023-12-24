@@ -90,11 +90,11 @@ export default defineComponent({
         },
     },
     methods: {
-        get_graph(name: string): GraphData | null {
+        get_graph(name: string): GraphData {
             let graphs: { [name: string]: GraphData } = JSON.parse(
                 localStorage.saved_graphs ?? "{}",
             )
-            return graphs[name] ?? null
+            return {...make_graph(), ...(graphs[name] ?? {})}
         },
         save_graph(name: string, graph: GraphData) {
             console.log("updated", graph)
@@ -114,10 +114,11 @@ export default defineComponent({
             const obj = this.objects[name]
             if (!obj) return
 
-            const saved = this.get_graph(this.selected.name) ?? make_graph()
+            const saved = this.get_graph(this.selected.name)
             this.graph = make_graph(
                 obj.value,
-                (node) => saved.nodes[node] ?? this.generate_node_pos(),
+                saved,
+                node => this.generate_node_pos(),
             )
 
             this.save_graph(this.selected.name, this.graph)

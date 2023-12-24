@@ -7,6 +7,22 @@ export function lerp(a: number, b: number, value: number): number {
 export type Vector2 = [number, number]
 
 export const vec = {
+    square_distance([x1, y1]: Vector2, [x2, y2]: Vector2): number {
+        return (x1 - x2)**2 + (y1 - y2)**2
+    },
+    distance([x1, y1]: Vector2, [x2, y2]: Vector2): number {
+        return Math.sqrt((x1 - x2)**2 + (y1 - y2)**2)
+    },
+    magnitude([x, y]: Vector2): number {
+        return Math.sqrt(x**2 + y**2)
+    },
+    angle([x, y]: Vector2): number {
+        if (x >= 0 && y >=0) return Math.atan(y/x)
+        else if (x < 0 && y >= 0) return  Math.atan(y/x) + Math.PI 
+        else if (x < 0 && y < 0) return Math.atan(y/x) + Math.PI
+        else return Math.atan(y/x) + 2*Math.PI
+    },
+
     lerp(a: Vector2, b: Vector2, value: number): Vector2 {
         return [
             lerp(a[0] , b[0], value),
@@ -16,18 +32,18 @@ export const vec = {
     straddle([x, y]: Vector2): Vector2 {
         return [Math.floor(x) + 0.5, Math.floor(y) + 0.5]
     },
-    square_distance(v: Vector2, u: Vector2) {
-        return (v[0] - u[0]) ** 2 + (v[1] - u[1]) ** 2
-    },
-    distance(v: Vector2, u: Vector2): number {
-        return Math.sqrt(vec.square_distance(v, u))
-    },
-    normalized(vector: Vector2): Vector2 {
-        const dist = vec.distance(vector, [0, 0])
-        return [vector[0] / dist, vector[1] / dist]
+    normalized([x, y]: Vector2): Vector2 {
+        const mag = vec.magnitude([x, y])
+        return [x / mag, y / mag]
     },
     negated([x, y]: Vector2): Vector2 {
         return [-x, -y]
+    },
+    negated_x([x, y]: Vector2): Vector2 {
+        return [-x, y]
+    },
+    negated_y([x, y]: Vector2): Vector2 {
+        return [x, -y]
     },
     sum(v: Vector2, u: Vector2 | number): Vector2 {
         if (typeof u === "number") {
@@ -47,6 +63,12 @@ export const vec = {
     rotated_right([x, y]: Vector2): Vector2 {
         return [y, -x]
     },
+    rotated([x, y]: Vector2, a: number): Vector2  {
+        return [
+            Math.cos(a)*x + Math.sin(a)*y,
+            -Math.sin(a)*x + Math.cos(a)*y
+        ]
+    },
     faced_up([x, y]: Vector2): Vector2 {
         if (y == 0) {
             return x < 0 ? [-x, -y] : [x, y]
@@ -60,6 +82,23 @@ export const vec = {
         return y < 0 ? [-x, -y] : [x, y]
     },
 }
+
+
+export function tuple_key(...el: any) {
+    return JSON.stringify(el)
+}
+export function from_tuple_key(key: string) {
+    return JSON.parse(key)
+}
+
+
+export function normalize_angle_range([a, b]: [number, number]): [number, number] {
+    if (a < 0) {
+        const v = Math.ceil(-a / 2*Math.PI)
+        return [a + 2*Math.PI * v, b + 2*Math.PI * v]
+    }
+    return [a, b]
+} 
 
 export interface CanvasConfig {
     fontFamily: string
@@ -100,13 +139,13 @@ export class Canvas {
 
     render_pos([x, y]: Vector2): Vector2 {
         const [ox, oy] = this.offset_value
-        return [x + ox, y + oy]
+        return [x - ox, y - oy]
     }
     from_render_pos(render_pos: Vector2): Vector2 {
         const [ox, oy] = this.offset_value
         return [
-            render_pos[0] / this.scale_value - ox,
-            render_pos[1] / this.scale_value - oy,
+            render_pos[0] / this.scale_value + ox,
+            render_pos[1] / this.scale_value + oy,
         ]
     }
 
@@ -121,7 +160,7 @@ export class Canvas {
     offset(vec: Vector2 | null = null) {
         const [x, y] = vec ?? this.offset_value
 
-        this.ctx.translate(x, y)
+        this.ctx.translate(-x, -y)
         this.offset_value = [x, y]
     }
 
@@ -135,20 +174,22 @@ export class Canvas {
         width = 1,
         color = "",
         alpha = 1.0,
+        range=[0, 2*Math.PI]
     }: {
         pos: Vector2
         radius: number
         width?: number
         color?: string
         alpha?: number
+        range?:[number, number]
     }) {
         this.ctx.imageSmoothingEnabled = true
         this.ctx.globalAlpha = alpha
         this.ctx.strokeStyle = color
         this.ctx.lineWidth = width
-        this.ctx.beginPath()
-        this.ctx.arc(pos[0], pos[1], radius, 0, 2.1 * Math.PI)
-        this.ctx.stroke()
+        const path = new Path2D()
+        path.arc(...vec.straddle(pos), radius - width/2, -range[0], -range[1], true)
+        this.ctx.stroke(path)
     }
 
     disk({
@@ -171,10 +212,10 @@ export class Canvas {
         this.ctx.lineWidth = border_width
         this.ctx.strokeStyle = border_color
         this.ctx.globalAlpha = alpha
-        this.ctx.beginPath()
-        this.ctx.arc(...vec.straddle(pos), radius, 0, 2 * Math.PI)
         this.ctx.fillStyle = color
-        this.ctx.fill()
+        const path = new Path2D()
+        path.arc(...vec.straddle(pos), radius, 0, 2 * Math.PI)
+        this.ctx.fill(path)
         this.ctx.stroke()
     }
 
@@ -215,10 +256,10 @@ export class Canvas {
         this.ctx.lineWidth = width
         this.ctx.strokeStyle = color ?? "#ffffff"
         this.ctx.globalAlpha = 1.0
-        this.ctx.beginPath()
-        this.ctx.moveTo(...vec.straddle(pos1))
-        this.ctx.lineTo(...vec.straddle(pos2))
-        this.ctx.stroke()
+        const path = new Path2D()
+        path.moveTo(...vec.straddle(pos1))
+        path.lineTo(...vec.straddle(pos2))
+        this.ctx.stroke(path)
     }
 
     arcTo({
@@ -334,9 +375,10 @@ export class Canvas {
     }
 }
 
-export interface Transition {
+export interface GraphArc {
     origin: State
     destination: State
+    arc_pos: number
     labels: string[]
     label_pos: number
     label_ontop: boolean
@@ -344,7 +386,7 @@ export interface Transition {
 
 export interface GraphData {
     nodes: { [name: State]: Vector2 }
-    transitions: Transition[]
+    arcs: { [tuple: string]: GraphArc }
     initial: State
     finals: State[]
 }
@@ -354,53 +396,92 @@ export function stringify_char_list(value: string[]) {
 }
 
 export function make_graph(
-    obj: any = {},
+    obj: FiniteAutomaton | TuringMachine | null = null,
+    base_graph: GraphData | null = null,
     positioning: ((node: string) => Vector2) | null = null,
 ): GraphData {
     if (!positioning) positioning = () => [0, 0]
 
-    const graph: GraphData = { nodes: {}, transitions: [], initial: "", finals: [] }
+    const graph: GraphData = { nodes: {}, arcs: {}, initial: "", finals: [] }
+
+    if (!obj) return graph
+
+    const default_arc = {
+        arc_pos: 0,
+        label_pos: 0.5,
+        label_ontop: true,
+    }
+
+    graph.initial = obj.initial_state
+    graph.finals = [...obj.final_states]
 
     if (obj instanceof TuringMachine) {
-        graph.initial = obj.initial_state
-        graph.finals = [...obj.final_states]
-
         for (const trans of obj.transition_map.transitions()) {
             const [origin, read, destination, write, shift] = trans
+            const key = tuple_key(origin, destination)
+            const arc = graph.arcs[key]
 
             const read_label = stringify_char_list(read)
             const write_label = stringify_char_list(write)
             const shift_label = shift.join(",")
-            const labels: string[] = [
-                `${read_label} ; ${write_label} ; ${shift_label}`,
-            ]
-            const label_pos = 0.5
-            const label_ontop = true
-            graph.transitions.push({ origin, destination, labels, label_pos, label_ontop })
-        }
+            const label = `${read_label} ; ${write_label} ; ${shift_label}`
 
-        for (const state of obj.states) {
-            graph.nodes[state] = positioning(state)
+            if (arc) {
+                arc.labels.push(label)
+                continue
+            }
+
+            const base_arc = base_graph?.arcs[key]
+            const new_arc: GraphArc = {
+                ...default_arc,
+                ...base_arc,
+                origin,
+                destination,
+                labels: [label]
+            }
+            graph.arcs[key] = new_arc
         }
     } else if (obj instanceof FiniteAutomaton) {
-        graph.initial = obj.initial_state
-        graph.finals = [...obj.final_states]
-
         for (const trans of obj.traverse_transitions()) {
             const [origin, read, destination] = trans
+            const key = tuple_key(origin, destination)
+            const arc = graph.arcs[key]
 
-            const labels: string[] = [`${read}`]
-            const label_pos = 0.5
-            const label_ontop = true
-            graph.transitions.push({ origin, destination, labels, label_pos, label_ontop })
+            const label = `${read}`
+
+            if (arc) {
+                arc.labels.push(label)
+                continue
+            }
+            
+            const base_arc = base_graph?.arcs[key]
+            const new_arc: GraphArc = {
+                ...default_arc,
+                ...base_arc,
+                origin,
+                destination,
+                labels: [label],
+            }
+            graph.arcs[key] = new_arc
+        }
+        for (const arc of Object.values(graph.arcs)) {
+            arc.labels = [stringify_char_list(arc.labels)]
         }
 
-        for (const state of obj.states) {
-            graph.nodes[state] = positioning(state)
-        }
+    }
+
+    for (const node of obj.states) {
+        let pos = base_graph?.nodes[node]
+        if (!pos) pos = positioning(node)
+        graph.nodes[node] = pos
     }
 
     return graph
+}
+
+
+export function get_loop_direction(arc_pos: number): Vector2 {
+    return [Math.cos(arc_pos), -Math.sin(arc_pos)]
 }
 
 export function random_position(origin: Vector2, size: Vector2): Vector2 {
