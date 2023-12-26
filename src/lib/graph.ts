@@ -7,7 +7,7 @@ export function lerp(a: number, b: number, value: number): number {
 export type Vector2 = [number, number]
 
 export const vec = {
-    square_distance([x1, y1]: Vector2, [x2, y2]: Vector2): number {
+    sqdistance([x1, y1]: Vector2, [x2, y2]: Vector2): number {
         return (x1 - x2)**2 + (y1 - y2)**2
     },
     distance([x1, y1]: Vector2, [x2, y2]: Vector2): number {
@@ -22,7 +22,9 @@ export const vec = {
         else if (x < 0 && y < 0) return Math.atan(y/x) + Math.PI
         else return Math.atan(y/x) + 2*Math.PI
     },
-
+    angle_between(u: Vector2, v: Vector2): number {
+        return Math.acos( vec.dot(u, v) / (vec.magnitude(u)*vec.magnitude(v)) )
+    },
     lerp(a: Vector2, b: Vector2, value: number): Vector2 {
         return [
             lerp(a[0] , b[0], value),
@@ -35,6 +37,13 @@ export const vec = {
     normalized([x, y]: Vector2): Vector2 {
         const mag = vec.magnitude([x, y])
         return [x / mag, y / mag]
+    },
+    sized([x, y]: Vector2, magnitude: number): Vector2 {
+        const m = magnitude / Math.sqrt(x**2 + y**2)
+        return [
+            x * m,
+            y * m,
+        ]
     },
     negated([x, y]: Vector2): Vector2 {
         return [-x, -y]
@@ -60,8 +69,17 @@ export const vec = {
     prod(vector: Vector2, scalar: number): Vector2 {
         return [vector[0] * scalar, vector[1] * scalar]
     },
+    dot([x1, y1]: Vector2, [x2, y2]: Vector2): number {
+        return x1*x2 + y1*y2
+    },
+    quot(vector: Vector2, scalar: number): Vector2 {
+        return [vector[0] / scalar, vector[1] / scalar]
+    },
     rotated_right([x, y]: Vector2): Vector2 {
         return [y, -x]
+    },
+    rotated_left([x, y]: Vector2): Vector2 {
+        return [-y, x]
     },
     rotated([x, y]: Vector2, a: number): Vector2  {
         return [
@@ -81,8 +99,52 @@ export const vec = {
         }
         return y < 0 ? [-x, -y] : [x, y]
     },
+    proj(a: Vector2, b: Vector2) {
+        return vec.prod( b, vec.dot(a, b) / vec.dot(b, b) )
+    }
 }
 
+export function circle_intersection(
+    [x1, y1]: Vector2, r1: number, [x2, y2]: Vector2, r2: number
+): [Vector2, Vector2] {
+    const centerdx = x1 - x2;
+    const centerdy = y1 - y2;
+    const R = Math.sqrt(centerdx * centerdx + centerdy * centerdy);
+    if (!(Math.abs(r1 - r2) <= R && R <= r1 + r2)) { // no intersection
+      throw new Error("Circles do not intersect");
+    }
+    // intersection(s) should exist
+  
+    const R2 = R*R;
+    const R4 = R2*R2;
+    const a = (r1*r1 - r2*r2) / (2 * R2);
+    const r2r2 = (r1*r1 - r2*r2);
+    const c = Math.sqrt(2 * (r1*r1 + r2*r2) / R2 - (r2r2 * r2r2) / R4 - 1);
+  
+    const fx = (x1+x2) / 2 + a * (x2 - x1);
+    const gx = c * (y2 - y1) / 2;
+    const ix1 = fx + gx;
+    const ix2 = fx - gx;
+  
+    const fy = (y1+y2) / 2 + a * (y2 - y1);
+    const gy = c * (x1 - x2) / 2;
+    const iy1 = fy + gy;
+    const iy2 = fy - gy;
+  
+    // note if gy == 0 and gx == 0 then the circles are tangent and there is only one solution
+    // but that one solution will just be duplicated as the code is currently written
+    return [[ix1, iy1], [ix2, iy2]];
+}
+
+export function line_intersection(
+    m1: number, [x1, y1]: Vector2, m2: number, [x2, y2]: Vector2
+): Vector2 {
+    // m1 * (x - x1) + y1 = m2 * (x - x2) + y2
+    const x = (-m2*x2 + y2 + m1*x1 - y1)/(m1-m2)
+    const y = m1 * (x - x1) + y1
+
+    return [x, y]
+}
 
 export function tuple_key(...el: any) {
     return JSON.stringify(el)
@@ -391,6 +453,15 @@ export interface GraphData {
     finals: State[]
 }
 
+export interface GraphUnits {
+    node_radius: number
+    arc_width: number
+    arc_arrow_width: number
+    arc_arrow_height: number
+    arc_loop_radius: number
+    arc_slider_radius: number
+}
+
 export function stringify_char_list(value: string[]) {
     return value.map((ch) => (["", " "].includes(ch) ? `"${ch}"` : ch)).join(",")
 }
@@ -432,12 +503,16 @@ export function make_graph(
             }
 
             const base_arc = base_graph?.arcs[key]
+            let arc_pos = obj.has_transition(destination, origin) ? 15 : 0
+            if (base_arc?.arc_pos) arc_pos = base_arc.arc_pos
+
             const new_arc: GraphArc = {
                 ...default_arc,
                 ...base_arc,
                 origin,
                 destination,
-                labels: [label]
+                labels: [label],
+                arc_pos
             }
             graph.arcs[key] = new_arc
         }
@@ -453,14 +528,18 @@ export function make_graph(
                 arc.labels.push(label)
                 continue
             }
-            
+
             const base_arc = base_graph?.arcs[key]
+            let arc_pos = obj.has_transition(destination, origin) ? 15 : 0
+            if (base_arc?.arc_pos) arc_pos = base_arc.arc_pos
+            
             const new_arc: GraphArc = {
                 ...default_arc,
                 ...base_arc,
                 origin,
                 destination,
                 labels: [label],
+                arc_pos
             }
             graph.arcs[key] = new_arc
         }
@@ -492,4 +571,67 @@ export function random_position(origin: Vector2, size: Vector2): Vector2 {
     const y = min_y + Math.random() * size_y
 
     return [Math.floor(x), Math.floor(y)]
+}
+
+export function get_curved_arc(
+    pos1: Vector2,
+    pos2: Vector2,
+    radius1: number,
+    radius2: number,
+    peak_value: number,
+    units: GraphUnits,
+) {
+    const direction = vec.diff(pos2, pos1)
+    const mean1 = vec.quot(vec.sum(pos1, pos2), 2)
+
+    const perpendicular = vec.rotated_right(direction)
+    const pos3 = vec.sum(
+        mean1, vec.prod(vec.normalized(perpendicular), peak_value)
+    )
+
+    const mean2 = vec.quot(vec.sum(pos1, pos3), 2)
+    
+    const [dx1, dy1] = direction
+    const m1 = -dx1 / dy1 // bisector slope -1/(dy1/dx1)
+    // y = m1 * (x - mean1[0]) + mean1[1]
+    
+    const [dx2, dy2] = vec.diff(pos3, pos1)
+    const m2 = -dx2 / dy2 // bisector slope -1/(dy2/dx2)
+    // y = m2 * (x - mean2[0]) + mean2[1]
+
+    const center = line_intersection(m1, mean1, m2, mean2)
+    const radius = vec.magnitude(vec.diff(pos1, center))
+
+    const [int1, int2] = circle_intersection(pos2, radius2, center, radius)
+    const arrow1 = (
+        vec.sqdistance(int1, pos3) > vec.sqdistance(int2, pos3) ?
+        int2 : int1
+    )
+    let arrow_direction = vec.rotated_right(vec.diff(arrow1, center))
+    if (peak_value < 0) arrow_direction = vec.negated(arrow_direction)
+    const arrow_width = vec.prod(
+        vec.normalized(vec.rotated_right(arrow_direction)), units.arc_arrow_width
+    )
+    const arrow_height = vec.prod(
+        vec.normalized(arrow_direction), units.arc_arrow_height
+    )
+    const arrow_end = vec.sum(arrow1, arrow_height)
+    const arrow2 = vec.sum(arrow_end, arrow_width)
+    const arrow3 = vec.sum(arrow_end, vec.negated(arrow_width))
+
+    const origin_delta = vec.diff(pos1, center)
+    const origin_offset = vec.sized(
+        peak_value > 0 ? vec.rotated_right(origin_delta) : vec.rotated_left(origin_delta),
+        -radius1
+    )
+    const delta1 = vec.sum(origin_delta, origin_offset)
+
+    const delta2 = vec.diff(arrow_end, center)
+    let range = normalize_angle_range([
+        vec.angle(vec.negated_y(delta2)), vec.angle(vec.negated_y(delta1))
+    ])
+    if (peak_value < 0) range = [range[1], range[0]]
+
+
+    return {center, radius, range, arrow1, arrow2, arrow3}
 }

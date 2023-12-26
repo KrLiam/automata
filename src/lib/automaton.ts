@@ -280,6 +280,12 @@ export class FiniteAutomaton {
         return new Set(states)
     }
 
+    has_transition(origin: State, destination: State): boolean {
+        const transitions = this.transition(origin, null)
+        if (!transitions) return false
+        return transitions.has(destination)
+    }
+
     *traverse_transition_map(): Generator<[State, string, State | Set<State>]> {
         for (const [start_state, symbol_map] of Object.entries(
             this.transition_map,
@@ -849,6 +855,18 @@ export class TuringMachine {
         }
 
         return reached
+    }
+
+    has_transition(origin: State, destination: State): boolean {
+        const transitions = this.transition_map.get(origin)
+        if (!transitions) return false
+        for (let trans of Object.values(transitions)) {
+            if (!(trans instanceof Array)) trans = [trans]
+
+            const end_states = trans.map(t => t.state)
+            if (end_states.includes(destination)) return true
+        }
+        return false
     }
 
     union(other: TuringMachine): TuringMachine {

@@ -21,7 +21,7 @@ defineEmits<{
 </script>
 
 <script lang="ts">
-import { type GraphData, type Vector2, Canvas, vec, get_loop_direction, normalize_angle_range, type GraphArc } from "../lib/graph"
+import { type GraphData, type Vector2, Canvas, vec, get_loop_direction, normalize_angle_range, type GraphArc, get_curved_arc, type GraphUnits } from "../lib/graph"
 import { defineComponent, defineProps } from "vue"
 
 export enum DragType {
@@ -57,6 +57,7 @@ export default defineComponent({
             value: null as any,
             start: [0, 0] as Vector2,
             base: [0, 0] as Vector2,
+            data: {} as any,
         },
 
         hover: {
@@ -64,10 +65,16 @@ export default defineComponent({
             radius: 0
         },
 
-        node_radius: 20,
-        arc_width: 5,
-        arc_loop_radius: 20,
-        arc_slider_radius: 5,
+        units: {
+            node_radius: 20,
+            arc_width: 5,
+            arc_arrow_width: 10,
+            arc_arrow_height: 15,
+            arc_loop_radius: 20,
+            arc_slider_radius: 5,
+        } as GraphUnits,
+
+        peak_value: 0
     }),
     computed: {
         canvasStyle() {
@@ -78,9 +85,6 @@ export default defineComponent({
             if (!this.loaded) style.display = "none"
 
             return style
-        },
-        arc_arrow_size() {
-            return [this.arc_width * 2, this.arc_width * 3]
         },
     },
     mounted() {
@@ -122,7 +126,7 @@ export default defineComponent({
             this.request_frame()
         },
         get_node_radius(node: string): number {
-            let radius = this.node_radius
+            let radius = this.units.node_radius
             if (this.value.finals.includes(node)) radius += 6.25
             return radius
         },
@@ -136,7 +140,7 @@ export default defineComponent({
             if (origin === destination) {
                 const direction = get_loop_direction(arc_pos)
                 const node_radius = this.get_node_radius(origin)
-                const length = node_radius*sin45 + this.arc_loop_radius*(1+sin45) - this.arc_width/2
+                const length = node_radius*sin45 + this.units.arc_loop_radius*(1+sin45) - this.units.arc_width/2
 
                 const slider_pos = vec.sum(
                     origin_pos,
@@ -145,6 +149,20 @@ export default defineComponent({
                 const text_pos = vec.sum(
                     slider_pos,
                     vec.prod(direction, 15)
+                )
+                return {slider_pos, text_pos}
+            }
+
+            if (arc_pos !== 0) {
+                const direction = vec.diff(dest_pos, origin_pos)
+                const mean1 = vec.quot(vec.sum(origin_pos, dest_pos), 2)
+
+                const perpendicular = vec.normalized(vec.rotated_right(direction))
+                const slider_pos = vec.sum(
+                    mean1, vec.prod(perpendicular, arc_pos)
+                )
+                const text_pos = vec.sum(
+                    slider_pos, vec.prod(perpendicular, 15)
                 )
                 return {slider_pos, text_pos}
             }
@@ -163,7 +181,8 @@ export default defineComponent({
             const sin45 = Math.sin(Math.PI/4)
 
             // arcs
-            const [arrow_width, arrow_height] = this.arc_arrow_size
+            const arrow_width = this.units.arc_arrow_width
+            const arrow_height = this.units.arc_arrow_height
             for (const { origin, destination, arc_pos, label_pos } of Object.values(this.value.arcs)) {
                 const origin_pos = this.value.nodes[origin]
                 const dest_pos = this.value.nodes[destination]
@@ -171,7 +190,7 @@ export default defineComponent({
                 const dest_radius = this.get_node_radius(destination)
 
                 if (origin === destination) {
-                    const radius = this.arc_loop_radius
+                    const radius = this.units.arc_loop_radius
                     const direction = get_loop_direction(arc_pos)
                     const angle = vec.angle(vec.negated_y(direction))
 
@@ -185,7 +204,7 @@ export default defineComponent({
                         vec.normalized(vec.rotated_right(arrow_direction)), arrow_width
                     )
                     const pos1 = vec.sum(
-                        pos, vec.prod(vec.rotated(direction, Math.PI*0.75), radius - this.arc_width)
+                        pos, vec.prod(vec.rotated(direction, Math.PI*0.75), radius - this.units.arc_width)
                     )
                     const arrow_end = vec.sum(pos1, arrow_direction)
                     const pos2 = vec.sum(arrow_end, arrow_width_direction)
@@ -193,9 +212,24 @@ export default defineComponent({
 
                     const arc_range = normalize_angle_range([angle - 0.76*Math.PI, angle + 0.5*Math.PI])
                     this.canvas.circle({
-                        pos, radius, width: this.arc_width, color:"#ffffff", range: arc_range
+                        pos, radius, width: this.units.arc_width, color:"#ffffff", range: arc_range
                     })
                     this.canvas.triangle({pos1, pos2, pos3, color: "#ffffff"})
+                    continue
+                }
+
+                if (arc_pos !== 0) {
+                    const {center, radius, range, arrow1, arrow2, arrow3} = get_curved_arc(
+                        origin_pos, dest_pos, origin_radius, dest_radius, arc_pos, this.units
+                    )
+                    this.canvas.circle({
+                        pos: center,
+                        radius: radius + this.units.arc_width/2,
+                        width: this.units.arc_width,
+                        color: "#ffffff",
+                        range
+                    })
+                    this.canvas.triangle({pos1: arrow1, pos2: arrow2, pos3: arrow3, color: "#ffffff"})
                     continue
                 }
 
@@ -214,7 +248,7 @@ export default defineComponent({
                 this.canvas.line({
                     pos1: line_start,
                     pos2: line_end,
-                    width: this.arc_width,
+                    width: this.units.arc_width,
                     color: "#ffffff",
                 })
             }
@@ -222,7 +256,7 @@ export default defineComponent({
             // initial node
             if (this.value.initial) {
                 const initial_pos = this.value.nodes[this.value.initial]
-                const initial_triangle = vec.sum(initial_pos, [-this.node_radius, 0])
+                const initial_triangle = vec.sum(initial_pos, [-this.units.node_radius, 0])
                 this.canvas.triangle({
                     pos1: initial_triangle,
                     pos2: vec.sum(initial_triangle, [-15, 10]),
@@ -243,12 +277,12 @@ export default defineComponent({
 
             // nodes
             for (const [name, [x, y]] of Object.entries(this.value.nodes)) {
-                const radius = this.node_radius
+                const radius = this.units.node_radius
                 
                 if (this.value.finals.includes(name)) this.canvas.circle({
                     pos: [x, y], radius: radius + 6.25, width: 2.5, color: "#ffffff"
                 })
-                this.canvas.disk({ pos: [x, y], radius, color: "#ffffff" })
+                this.canvas.disk({ pos: [x, y], radius, color: "#ffffff"})
    
                 const metrics = this.canvas.measureText({ text: name, size: 20 })
                 if (metrics.width >= radius * 2) {
@@ -282,7 +316,7 @@ export default defineComponent({
             for (const [key, arc] of Object.entries(this.value.arcs)) {
                 const {slider_pos, text_pos} = this.get_label_pos(arc)
                 
-                this.canvas.disk({pos: slider_pos, color:"#ffffff", radius: this.arc_slider_radius})
+                this.canvas.disk({pos: slider_pos, color:"#ffffff", radius: this.units.arc_slider_radius})
 
                 let offset = 0
                 for (const label of arc.labels) {
@@ -298,6 +332,16 @@ export default defineComponent({
                 }
 
                 this.arcSliders.push({arc: key, pos: slider_pos})
+            }
+
+
+            if (this.drag.data.direction) {
+                const [pos1, pos2]: [Vector2, Vector2] = this.drag.data.direction
+                const mouse: Vector2 = this.drag.data.mouse
+                const proj: Vector2 = this.drag.data.proj
+                // this.canvas.line({pos1, pos2, width:5, color:"#ff0000"})
+                // this.canvas.line({pos1, pos2: mouse, width:5, color:"#00ff00"})
+                // this.canvas.line({pos1, pos2: proj, width:5, color:"#0000ff"})
             }
         },
 
@@ -326,6 +370,8 @@ export default defineComponent({
                 const {origin, destination} = this.value.arcs[slider.arc]
 
                 this.drag.type = origin === destination ? DragType.LoopArc : DragType.LineArc
+                this.drag.base = slider.pos
+                this.drag.start = pos
                 this.drag.value = slider
             }
         },
@@ -333,6 +379,7 @@ export default defineComponent({
             if (this.drag.type) {
                 this.$emit("updated-graph")
                 this.drag.type = DragType.None
+                this.drag.data = {}
             }
         },
         mouseMove(event: MouseEvent) {
@@ -368,6 +415,32 @@ export default defineComponent({
                     
                     return
                 }
+                if (this.drag.type === DragType.LineArc) {
+                    const slider = this.drag.value as ArcSlider
+                    const arc = this.value.arcs[slider.arc]
+                    if (!this.drag.data.base_arc_pos) {
+                        this.drag.data.base_arc_pos = arc.arc_pos
+                    } 
+
+                    const origin_pos = this.value.nodes[arc.origin]
+                    const dest_pos = this.value.nodes[arc.destination]
+                    const direction = vec.diff(dest_pos, origin_pos)
+                    const slider_direction = vec.rotated_right(direction)
+                    
+                    const directed_delta = vec.proj(delta, slider_direction)
+                    const [_, delta_arc_pos] = vec.rotated(directed_delta, vec.angle(direction))
+                    
+                    const arc_pos = this.drag.data.base_arc_pos - delta_arc_pos
+                    arc.arc_pos = Math.abs(arc_pos) < 10 ? 0 : arc_pos
+
+                    const {slider_pos} = this.get_label_pos(arc)
+                    this.hover.pos = slider_pos
+                    
+                    this.drag.data.direction = [slider.pos, vec.sum(slider.pos, vec.sized(direction, 100))]
+                    this.drag.data.mouse = drag_pos
+                    this.drag.data.proj = vec.sum(slider.pos, directed_delta)
+                    return
+                }
 
                 return
             }
@@ -387,7 +460,7 @@ export default defineComponent({
                 const slider = result.value
 
                 this.hover.pos = slider.pos
-                this.hover.radius = this.arc_slider_radius * 2
+                this.hover.radius = this.units.arc_slider_radius * 2
             }
         },
 
@@ -396,17 +469,17 @@ export default defineComponent({
             {type: CollisionType.ArcSlider, value: ArcSlider} |
             null
         {
-            const node_threshold = this.node_radius ** 2 * 1.5
+            const node_threshold = this.units.node_radius ** 2 * 1.5
             for (const [value, node_pos] of Object.entries(this.value.nodes)) {
-                const dist = vec.square_distance(pos, node_pos)
+                const dist = vec.sqdistance(pos, node_pos)
                 if (dist <= node_threshold) {
                     return {type: CollisionType.Node, value}
                 }
             }
 
-            const slider_threshold = this.arc_slider_radius ** 2 * 8
+            const slider_threshold = this.units.arc_slider_radius ** 2 * 8
             for (const slider of this.arcSliders) {
-                const dist = vec.square_distance(pos, slider.pos)
+                const dist = vec.sqdistance(pos, slider.pos)
                 if (dist <= slider_threshold) {
                     return {type: CollisionType.ArcSlider, value: slider}
                 }
