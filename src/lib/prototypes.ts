@@ -24,18 +24,12 @@ import {
     AstString,
     AstTest,
 } from "./ast"
-import {
-    FiniteAutomaton,
-    TuringTransitionMap,
-    TuringTape,
-    TuringMachine,
-} from "./automaton"
+import { FiniteAutomaton, TuringTape, TuringMachine } from "./automaton"
 import { Binding, Scope, LangObject } from "./evaluator"
 import { SourceLocation, Token } from "./tokenstream"
 
 export const prototypes: any = {
     FiniteAutomaton,
-    TuringTransitionMap,
     TuringTape,
     TuringMachine,
     Binding,

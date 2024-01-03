@@ -46,13 +46,7 @@ export function convert_turing_xml(turing: TuringMachine) {
         "-": "S",
     }
     const transitions: any[] = []
-    for (const [
-        start,
-        read,
-        end,
-        write,
-        shift,
-    ] of turing.transition_map.transitions()) {
+    for (const [start, read, end, write, shift] of turing.transitions()) {
         const converted_read = read.map((char, i) => ({
             "@_tape": tape_to_id[turing.tapes[i]],
             "#text": char === " " ? "" : char === "" ? "~" : char,

@@ -487,7 +487,7 @@ export function make_graph(
     graph.finals = [...obj.final_states]
 
     if (obj instanceof TuringMachine) {
-        for (const trans of obj.map.transitions()) {
+        for (const trans of obj.transitions()) {
             const [origin, read, destination, write, shift] = trans
             const key = tuple_key(origin, destination)
             const arc = graph.arcs[key]
@@ -518,7 +518,7 @@ export function make_graph(
         }
     }
     else if (obj instanceof FiniteAutomaton) {
-        for (const trans of obj.traverse_transitions()) {
+        for (const trans of obj.transitions()) {
             const [origin, read, destination] = trans
             const key = tuple_key(origin, destination)
             const arc = graph.arcs[key]

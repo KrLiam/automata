@@ -2,7 +2,6 @@ import { XMLParser } from "fast-xml-parser"
 import { AstRoot, AstIdentifier } from "./ast"
 import {
     FiniteAutomaton,
-    TuringTransitionMap,
     format_transition_table,
     type State,
     TuringMachine,
@@ -22,7 +21,6 @@ export const exposed_default = {
     FiniteAutomaton,
     format_transition_table,
     TuringMachine,
-    TuringTransitionMap,
     Compiler,
     get_class_hierarchy,
     Evaluator,
