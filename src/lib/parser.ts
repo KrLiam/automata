@@ -517,7 +517,7 @@ export function parse_string(stream: TokenStream): AstString {
         quote: quote ? '"' : null,
         singlequote: singlequote ? "'" : null,
         backslash: "\\\\",
-        text: `[^\\n\\\\${opening.value}]*`,
+        text: `[^\\n\\\\${opening.value}]+`,
     }
     return stream.syntax(patterns, () =>
         stream.intercept(["whitespace", "newline"], () => {
