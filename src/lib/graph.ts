@@ -1,4 +1,4 @@
-import { TuringMachine, type State, FiniteAutomaton } from "../lib/automaton"
+import { TuringMachine, type State, FiniteAutomaton, StateMachine, type TuringTransition, type FiniteTransition, type Transition } from "../lib/automaton"
 
 export function lerp(a: number, b: number, value: number): number {
     return a*(1 - value) + b*value
@@ -466,6 +466,29 @@ export function stringify_char_list(value: string[]) {
     return value.map((ch) => (["", " "].includes(ch) ? `"${ch}"` : ch)).join(",")
 }
 
+export function make_finite_label(transitions: FiniteTransition[]): string[] {
+    const chars = transitions.map(([_, read]) => read)
+    const label = chars.join(",")
+
+    return [label]
+}
+
+export function make_turing_label(transitions: TuringTransition[]): string[] {
+    const labels: string[] = []
+
+    for (const transition of transitions) {
+        const [_, read, __, write, shift] = transition
+    
+        const read_label = stringify_char_list(read)
+        const write_label = stringify_char_list(write)
+        const shift_label = shift.join(",")
+    
+        labels.push(`${read_label} ; ${write_label} ; ${shift_label}`)
+    }
+
+    return labels
+}
+
 export function make_graph(
     obj: FiniteAutomaton | TuringMachine | null = null,
     base_graph: GraphData | null = null,
@@ -477,6 +500,8 @@ export function make_graph(
 
     if (!obj) return graph
 
+    const format_label = obj instanceof FiniteAutomaton ? make_finite_label : make_turing_label
+
     const default_arc = {
         arc_pos: 0,
         label_pos: 0.5,
@@ -486,68 +511,34 @@ export function make_graph(
     graph.initial = obj.initial_state
     graph.finals = [...obj.final_states]
 
-    if (obj instanceof TuringMachine) {
-        for (const trans of obj.transitions()) {
-            const [origin, read, destination, write, shift] = trans
-            const key = tuple_key(origin, destination)
-            const arc = graph.arcs[key]
+    const transitions: {[key: string]: any[]} = {}
 
-            const read_label = stringify_char_list(read)
-            const write_label = stringify_char_list(write)
-            const shift_label = shift.join(",")
-            const label = `${read_label} ; ${write_label} ; ${shift_label}`
+    for (const trans of obj.transitions()) {
+        const [origin, _, destination] = trans
+        const key = tuple_key(origin, destination)
 
-            if (arc) {
-                arc.labels.push(label)
-                continue
-            }
-
-            const base_arc = base_graph?.arcs[key]
-            let arc_pos = obj.has_transition(destination, origin) ? 15 : 0
-            if (base_arc?.arc_pos) arc_pos = base_arc.arc_pos
-
-            const new_arc: GraphArc = {
-                ...default_arc,
-                ...base_arc,
-                origin,
-                destination,
-                labels: [label],
-                arc_pos
-            }
-            graph.arcs[key] = new_arc
-        }
+        if (!transitions[key]) transitions[key] = []
+        transitions[key].push(trans)
     }
-    else if (obj instanceof FiniteAutomaton) {
-        for (const trans of obj.transitions()) {
-            const [origin, read, destination] = trans
-            const key = tuple_key(origin, destination)
-            const arc = graph.arcs[key]
+    
+    for (const [key, trans_arr] of Object.entries(transitions)) {
+        const [origin, destination] = from_tuple_key(key)
 
-            const label = `${read}`
+        const labels = format_label(trans_arr)
 
-            if (arc) {
-                arc.labels.push(label)
-                continue
-            }
+        const base_arc = base_graph?.arcs[key]
+        let arc_pos = obj.has_transition(destination, origin) ? 15 : 0
+        if (base_arc?.arc_pos) arc_pos = base_arc.arc_pos
 
-            const base_arc = base_graph?.arcs[key]
-            let arc_pos = obj.has_transition(destination, origin) ? 15 : 0
-            if (base_arc?.arc_pos) arc_pos = base_arc.arc_pos
-            
-            const new_arc: GraphArc = {
-                ...default_arc,
-                ...base_arc,
-                origin,
-                destination,
-                labels: [label],
-                arc_pos
-            }
-            graph.arcs[key] = new_arc
+        const new_arc: GraphArc = {
+            ...default_arc,
+            ...base_arc,
+            origin,
+            destination,
+            labels,
+            arc_pos
         }
-        for (const arc of Object.values(graph.arcs)) {
-            arc.labels = [stringify_char_list(arc.labels)]
-        }
-
+        graph.arcs[key] = new_arc
     }
 
     for (const node of obj.states) {
