@@ -462,13 +462,22 @@ export interface GraphUnits {
     arc_slider_radius: number
 }
 
+
+export const formatted_chars: {[ch: string]: string} = {
+    "": "ε",
+    " ": "□",
+}
+
 export function stringify_char_list(value: string[]) {
-    return value.map((ch) => (["", " "].includes(ch) ? `"${ch}"` : ch)).join(",")
+    const chars = value.map((ch) => (
+        formatted_chars[ch] ? formatted_chars[ch] : ch
+    ))
+    return chars.join(",")
 }
 
 export function make_finite_label(transitions: FiniteTransition[]): string[] {
     const chars = transitions.map(([_, read]) => read)
-    const label = chars.join(",")
+    const label = stringify_char_list(chars)
 
     return [label]
 }
