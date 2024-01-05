@@ -24,6 +24,7 @@ import {
     type FiniteTransition,
     type TuringTransition,
     type TuringShiftChar,
+    StateMachine,
 } from "./automaton"
 import { SourceLocation, set_location } from "./tokenstream"
 import { Visitor, rule } from "./visitor"
@@ -431,7 +432,7 @@ export class Evaluator extends Visitor<AstNode, Scope, void> {
         }
 
         const value = obj.value
-        if (!(value instanceof TuringMachine)) {
+        if (!(value instanceof StateMachine)) {
             throw set_location(
                 new EvaluationError(
                     `Object of type ${type_name(value)} is not testable.`,

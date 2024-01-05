@@ -1,5 +1,5 @@
 import { XMLParser, XMLBuilder } from "fast-xml-parser"
-import type { TuringMachine, TuringShiftChar } from "./automaton"
+import { Blank, type TuringMachine, type TuringShiftChar } from "./automaton"
 
 const options = {
     ignoreAttributes: false,
@@ -49,12 +49,12 @@ export function convert_turing_xml(turing: TuringMachine) {
     for (const [start, read, end, write, shift] of turing.transitions()) {
         const converted_read = read.map((char, i) => ({
             "@_tape": tape_to_id[turing.tapes[i]],
-            "#text": char === " " ? "" : char === "" ? "~" : char,
+            "#text": char === Blank ? "" : char === "" ? "~" : char,
         }))
 
         const converted_write = write.map((char, i) => ({
             "@_tape": tape_to_id[turing.tapes[i]],
-            "#text": char === " " ? "" : char === "" ? "~" : char,
+            "#text": char === Blank ? "" : char === "" ? "~" : char,
         }))
 
         const converted_shift = shift.map((char, i) => ({

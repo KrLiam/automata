@@ -24,13 +24,13 @@ import {
     AstString,
     AstTest,
 } from "./ast"
-import { FiniteAutomaton, TuringTape, TuringMachine } from "./automaton"
+import { FiniteAutomaton, Tape, TuringMachine } from "./automaton"
 import { Binding, Scope, LangObject } from "./evaluator"
 import { SourceLocation, Token } from "./tokenstream"
 
 export const prototypes: any = {
     FiniteAutomaton,
-    TuringTape,
+    Tape,
     TuringMachine,
     Binding,
     Scope,
