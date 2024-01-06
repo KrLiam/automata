@@ -5,6 +5,7 @@ import {
     format_transition_table,
     type State,
     TuringMachine,
+    StateMachine,
 } from "./automaton"
 import { Compiler, underline_code } from "./compiler"
 import { Evaluator, Scope } from "./evaluator"
@@ -40,16 +41,18 @@ export function expose(values: { [name: string]: any }) {
     }
 }
 
-function compute(mt: TuringMachine, input: string) {
+function compute(mt: StateMachine<any, any>, input: string) {
     let steps = -1
 
-    let state: State = mt.initial_state
-    for (let [conf_state, _] of mt.compute(input)) {
+    let accepted = false
+    for (let confs of mt.compute(input)) {
         steps++
-        state = conf_state
-    }
 
-    const accepted = mt.final_states.has(state)
+        if (confs.some(conf => conf.accepted)) {
+            accepted = true
+            break
+        }
+    }
 
     return { accepted, steps }
 }
