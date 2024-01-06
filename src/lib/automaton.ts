@@ -564,29 +564,20 @@ export class FiniteAutomaton extends StateMachine<string, []> {
         return ch === Blank && (pos + 1) === string.length
     }
 
-    static *get_transitions(map: FiniteTransitionMap): Generator<FiniteTransition> {
-        for (const [start_state, symbol_map] of Object.entries(map)) {
-            for (const [symbol, end_states] of Object.entries(symbol_map)) {
-                for (const state of end_states) {
-                    yield [start_state, symbol, state]
-                }
-            }
-        }
-    }
-
     determinize() {
         const epsilon_closure = this.compute_closure(Epsilon)
         const initial_state = join_state_set(epsilon_closure[this.initial_state])
-        const transitions: FiniteTransitionMap = {}
+        const transitions: FiniteTransition[] = []
         const final_states: Set<State> = new Set()
 
+        const visited: Set<State> = new Set()
         const remaining: State[] = [initial_state]
 
         while (remaining.length) {
             const state_name = remaining.shift() as State
 
-            if (transitions[state_name]) continue
-            transitions[state_name] = {}
+            if (visited.has(state_name)) continue
+            visited.add(state_name)
 
             const state_set = split_state_set(state_name)
 
@@ -607,11 +598,12 @@ export class FiniteAutomaton extends StateMachine<string, []> {
                 if (!end_state_set.size) continue
                 const end_state_name = join_state_set(end_state_set)
 
-                transitions[state_name][symbol] = new Set([end_state_name])
+                const transition: FiniteTransition = [state_name, symbol, end_state_name]
+                transitions.push(transition)
 
                 if (
                     !remaining.includes(end_state_name) &&
-                    !transitions[end_state_name]
+                    !visited.has(end_state_name)
                 ) {
                     remaining.push(end_state_name)
                 }
@@ -623,7 +615,7 @@ export class FiniteAutomaton extends StateMachine<string, []> {
         }
 
         return new FiniteAutomaton(
-            FiniteAutomaton.get_transitions(transitions),
+            transitions,
             initial_state,
             final_states,
             [],
