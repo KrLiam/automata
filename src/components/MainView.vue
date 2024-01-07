@@ -10,19 +10,18 @@
                 :separator_size="15"
             >
                 <template v-slot:left>
-                    <SelectMenu
-                        class="select-menu"
-                        :elements="menuElements"
-                        @select="select"
-                        @unselect="unselect"
-                    ></SelectMenu>
+                    <SidebarArea
+                        class="sidebar"
+                        :selected="get_selected_object()"
+                        @selected="update_selected"
+                    ></SidebarArea>
                 </template>
                 <template v-slot:right>
                     <GraphVisualizer
                         :value="graph"
                         @mounted="canvas = $event.canvas"
                         @updated-graph="
-                            selected ? save_graph(selected.name, graph) : null
+                            selected ? save_graph(selectedName, graph) : null
                         "
                     ></GraphVisualizer>
                 </template>
@@ -39,7 +38,7 @@ type Message = { level: string; message: string }
 
 defineProps<{
     messages: Message[]
-    objects: { [name: string]: LangObject }
+    objects: Scope | null
 }>()
 </script>
 
@@ -48,9 +47,10 @@ import { defineComponent, defineProps } from "vue"
 import OutputMessages from "./OutputMessages.vue"
 import SplitView from "./SplitView.vue"
 import GraphVisualizer from "./GraphVisualizer.vue"
-import SelectMenu, { type SelectElement, type SelectEvent } from "./SelectMenu.vue"
-import { LangObject } from "../lib/evaluator"
-import { TuringMachine } from "../lib/automaton"
+import SidebarArea from "./SidebarArea.vue"
+import { type SelectElement, type SelectEvent } from "./SelectMenu.vue"
+import { LangObject, Scope } from "../lib/evaluator"
+import { FiniteAutomaton, StateMachine, TuringMachine } from "../lib/automaton"
 import { convert_turing_xml } from "../lib/export"
 import {
     make_graph,
@@ -64,19 +64,11 @@ export default defineComponent({
     components: {
         OutputMessages,
         GraphVisualizer,
-        SelectMenu,
+        SidebarArea,
         SplitView,
     },
-    computed: {
-        menuElements(): SelectElement[] {
-            return Object.entries(this.objects).map(([name, value]) => ({
-                name,
-                value,
-            }))
-        },
-    },
     data: () => ({
-        selected: null as SelectElement | null,
+        selected: [] as string[],
         graph: make_graph(),
         canvas: null as Canvas | null,
     }),
@@ -89,6 +81,11 @@ export default defineComponent({
             this.update_graph()
         },
     },
+    computed: {
+        selectedName() {
+            return this.selected.join("/")
+        }
+    },
     methods: {
         get_graph(name: string): GraphData {
             let graphs: { [name: string]: GraphData } = JSON.parse(
@@ -97,7 +94,6 @@ export default defineComponent({
             return {...make_graph(), ...(graphs[name] ?? {})}
         },
         save_graph(name: string, graph: GraphData) {
-            console.log("updated", graph)
             let graphs: { [name: string]: GraphData } = JSON.parse(
                 localStorage.saved_graphs ?? "{}",
             )
@@ -105,23 +101,22 @@ export default defineComponent({
             localStorage.saved_graphs = JSON.stringify(graphs)
         },
         update_graph() {
-            if (!this.selected) {
+            const obj = this.get_selected_object()
+            if (!obj || !(obj.value instanceof StateMachine)) {
                 this.graph = make_graph()
                 return
             }
 
-            const name = this.selected.name
-            const obj = this.objects[name]
-            if (!obj) return
+            const name = this.selectedName
 
-            const saved = this.get_graph(this.selected.name)
+            const saved = this.get_graph(name)
             this.graph = make_graph(
                 obj.value,
                 saved,
                 node => this.generate_node_pos(),
             )
 
-            this.save_graph(this.selected.name, this.graph)
+            this.save_graph(name, this.graph)
         },
         generate_node_pos(): Vector2 {
             const rect = this.canvas?.rect ?? { width: 500, height: 500 }
@@ -151,11 +146,37 @@ export default defineComponent({
             }
         },
 
-        select(event: SelectEvent) {
-            this.selected = event.element
+        update_selected(path: string[]) {
+            this.selected = path
         },
-        unselect() {
-            this.selected = null
+        get_object(path: string[]): LangObject | null {
+            if (!this.objects) return null
+
+            const binding = this.objects.path(path)
+            if (!binding) return null
+
+            const obj = binding.unwrap()
+            if (!(obj instanceof LangObject)) return null
+
+            return obj
+        },
+        get_selected_object(): LangObject | null {
+            if (!this.selected.length) return new LangObject(null, this.objects)
+
+            const namespace = this.selected.slice(0, -1)
+            const name = this.selected[this.selected.length - 1]
+
+            if (name === "#det") {
+                const obj = this.get_object(namespace)
+                if (!obj || !(obj.value instanceof FiniteAutomaton)) return null
+
+                const new_value = obj.value.determinize()
+                return new LangObject(new_value, new Scope())
+            }
+
+            const obj = this.get_object([...namespace, name])
+            if (!obj) return null
+            return obj
         },
     },
 })
@@ -179,7 +200,7 @@ export default defineComponent({
     background: var(--background-13);
 }
 
-.select-menu {
+.sidebar {
     padding: 15px 0 0 15px;
 }
 

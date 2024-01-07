@@ -90,8 +90,11 @@ export class Binding {
         this.defined = true
     }
 
-    unwrap() {
-        if (!this.defined) throw new PreDefinitionUsageError(this)
+    unwrap(optional: boolean = false) {
+        if (!this.defined) {
+            if (optional) return null
+            throw new PreDefinitionUsageError(this)
+        }
         return this.value
     }
 }
@@ -103,6 +106,31 @@ export class Scope {
     constructor(parent: Scope | null = null) {
         this.parent = parent
         this.bindings = {}
+    }
+
+    subscope(namespace: string[]): Scope | null {
+        let scope: Scope = this
+
+        for (const nested_name of namespace) {
+            const value = scope.value(nested_name, true)
+
+            if (!(value instanceof LangObject)) return null
+            if (!value.scope) return null
+
+            scope = value.scope
+        }
+
+        return scope
+    }
+    path(path: string[]): Binding | null {
+        const namespace = path.slice(0, -1)
+        const name = path[path.length - 1]
+
+        const scope = this.subscope(namespace)
+        if (!scope) return null
+
+        const binding = scope.bindings[name]
+        return binding ? binding : null
     }
 
     declare(name: string, value: any = undefined): Binding {
@@ -142,10 +170,11 @@ export class Scope {
         return result
     }
 
-    value(name: string): any {
+    value(name: string, optional: boolean = false, parent: boolean = true): any {
         const binding = this.bindings[name]
         if (!binding) {
-            if (this.parent) return this.parent.value(name)
+            if (parent && this.parent) return this.parent.value(name)
+            if (optional) return null
             throw new UndeclaredNameError(this, name)
         }
 
@@ -171,12 +200,18 @@ export class Scope {
         return binding.defined
     }
 
-    *[Symbol.iterator](): Generator<[string, any]> {
+    entries(): [string, any][] {
+        const result: [string, any][] = []
         for (let [name, binding] of Object.entries(this.bindings)) {
             if (binding.defined && !name.startsWith("$")) {
-                yield [name, binding.unwrap()]
+                result.push([name, binding.unwrap()])
             }
         }
+        return result
+    }
+
+    [Symbol.iterator](): [string, any][] {
+        return this.entries()
     }
 }
 

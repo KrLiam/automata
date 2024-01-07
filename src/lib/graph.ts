@@ -499,7 +499,7 @@ export function make_turing_label(transitions: TuringTransition[]): string[] {
 }
 
 export function make_graph(
-    obj: FiniteAutomaton | TuringMachine | null = null,
+    obj: StateMachine<any, any> | null = null,
     base_graph: GraphData | null = null,
     positioning: ((node: string) => Vector2) | null = null,
 ): GraphData {

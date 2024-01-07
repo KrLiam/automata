@@ -16,7 +16,7 @@ import { recover_prototypes } from "./lib/prototypes"
 import { mount as editorMount } from "./lib/language"
 import { expose, exposed_default } from "./lib/expose"
 import CompilerWorker from "./workers/compiler?worker"
-import type { LangObject } from "./lib/evaluator"
+import type { LangObject, Scope } from "./lib/evaluator"
 import type { CompileSuccessResponse } from "./workers/compiler"
 
 export default defineComponent({
@@ -33,7 +33,7 @@ export default defineComponent({
             changeInterval: 500,
             code: source ? source : example_code,
             messages: [] as any[],
-            objects: {} as { [name: string]: LangObject },
+            objects: null as Scope | null,
         }
     },
     mounted() {
@@ -96,10 +96,7 @@ export default defineComponent({
 
                 this.log("success", `Done in ${time_taken}ms!`)
 
-                this.objects = {}
-                for (const [name, value] of scope) {
-                    this.objects[name] = value
-                }
+                this.objects = scope
 
                 expose({ $ast: ast, $tokens: tokens, $scope: scope })
 
@@ -155,6 +152,8 @@ export default defineComponent({
     --black: #181818;
     --text: rgba(235, 235, 235, 0.64);
 
+    --detail-green: hsla(160, 100%, 37%, 1);
+
     --error: #f48771;
     --success: #64fa61;
     --background-9: #181818;
@@ -187,6 +186,9 @@ main,
     max-height: 100%;
 }
 
+* {
+    font-family: inherit;
+}
 main {
     display: flex;
     width: 100vw;
