@@ -623,7 +623,7 @@ export function parse_char_condition(stream: TokenStream): AstIdentifier | AstCh
         )
     } else if (quote) {
         node = stream.intercept(["whitespace", "newline"], () => {
-            const quoted_char = stream.syntax({ char: '[^\\n\\r\\t"]' }, () =>
+            const quoted_char = stream.syntax({ char: '[^\\n\\r\\t"]+' }, () =>
                 stream.get("char"),
             )
             const closing_quote = stream.expect("quote")

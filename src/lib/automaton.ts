@@ -159,14 +159,16 @@ export type TapeState = [string, number]
 export class Tape {
     value: string
     pos: number
+    bounded: boolean
 
-    constructor(value: string = "", pos: number = 0) {
+    constructor(value: string = "", pos: number = 0, bounded: boolean = false) {
         this.value = value
         this.pos = pos
+        this.bounded = bounded
     }
 
     copy() {
-        return new Tape(this.value, this.pos)
+        return new Tape(this.value, this.pos, this.bounded)
     }
 
     shift_left(amount: number = 1) {
@@ -177,6 +179,11 @@ export class Tape {
     }
     shift(amount: number) {
         this.pos += amount
+
+        if (this.bounded) {
+            this.pos = Math.max(Math.min(this.value.length, this.pos), 0)
+            return
+        }
 
         if (this.pos < 0) {
             this.extend_left(Math.abs(this.pos))
@@ -194,10 +201,10 @@ export class Tape {
         this.value = this.value + Blank.repeat(amount)
     }
 
-    read() {
+    read(size: number = 1): string {
         if (!this.value.length) return Blank
 
-        return this.value[this.pos]
+        return this.value.slice(this.pos, this.pos + size)
     }
 
     write(char: string) {
@@ -247,6 +254,7 @@ export abstract class StateMachine<R extends TransitionSymbol, A extends any[]> 
     alphabet: Set<string>
     tapes: string[]
     map: TransitionMapObject<A>
+    bounded: boolean
 
     get_transition_map(transitions: Iterable<Transition<R, A>>) {
         const map: TransitionMapObject<A> = {}
@@ -274,6 +282,7 @@ export abstract class StateMachine<R extends TransitionSymbol, A extends any[]> 
         tapes: number | string[] = 1,
         states: Set<State> | State[] = [],
         alphabet: Set<string> | string[] = [],
+        bounded: boolean = false,
     ) {
         this.map = this.get_transition_map(transitions)
         this.initial_state = initial_state
@@ -284,6 +293,7 @@ export abstract class StateMachine<R extends TransitionSymbol, A extends any[]> 
             Array.from(new Array(tapes), (_, k) => k.toString())
         )
         this.states = new Set([...states, ...this.transition_states()])
+        this.bounded = bounded
 
         const symbols = this.transition_alphabet()
         symbols.delete(Epsilon)
@@ -429,12 +439,13 @@ export abstract class StateMachine<R extends TransitionSymbol, A extends any[]> 
     initial_configuration(input: string): ConfigurationNode {
         const input_tape: TapeState = [input, 0]
         const extra_tapes: TapeState[] = this.tapes.slice(1).map(() => ["", 0])
-        const state = this.initial_state
 
+        const state = this.initial_state
+        const tapes = [ input_tape, ...extra_tapes ]
         return {
             state,
-            accepted: this.final_states.has(state),
-            tapes: [ input_tape, ...extra_tapes ]
+            accepted: this.is_acceptable(state, tapes),
+            tapes,
         }
     }
 
@@ -444,11 +455,18 @@ export abstract class StateMachine<R extends TransitionSymbol, A extends any[]> 
 
     step(node: ConfigurationNode): ConfigurationNode[] {
         const state = node.state
-        const tapes = node.tapes.map(([value, pos]) => new Tape(value, pos))
+        const tapes = node.tapes.map(([value, pos]) => new Tape(value, pos, this.bounded))
 
-        const read_chars = tapes.map(t => t.read())
-        const read = this.to_pattern(read_chars)
-        const transitions = this.transition(state, read)
+        const max_read_length = Math.max(...Array.from(this.alphabet, str => str.length))
+
+        let transitions: Transition<R, A>[] = []
+        for (let size = max_read_length; size >= 1; size--) {
+            const read_chars = tapes.map(t => t.read(size))
+            const read = this.to_pattern(read_chars)
+            transitions = this.transition(state, read)
+
+            if (transitions.length) break
+        }
 
         const confs: ConfigurationNode[] = []
 
@@ -535,7 +553,7 @@ export class FiniteAutomaton extends StateMachine<string, []> {
         states: Set<State> | State[] = [],
         alphabet: Set<string> | string[] = [],
         ) {
-            super(transitions, initial_state, final_states, 1, states, alphabet)
+            super(transitions, initial_state, final_states, 1, states, alphabet, true)
         }
         
     to_pattern(value: TransitionSymbol): string {
@@ -549,7 +567,7 @@ export class FiniteAutomaton extends StateMachine<string, []> {
         if (read === Epsilon) return
 
         for (const tape of tapes) {
-            tape.shift(1)
+            tape.shift(read.length)
         }
     }
 
@@ -557,11 +575,7 @@ export class FiniteAutomaton extends StateMachine<string, []> {
         if (!this.final_states.has(state)) return false
 
         const [string, pos] = tapes[0]
-        const ch = string[pos]
-
-        if (!ch) return true
-
-        return ch === Blank && (pos + 1) === string.length
+        return pos >= string.length
     }
 
     determinize() {

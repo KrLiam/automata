@@ -363,6 +363,14 @@ export class Evaluator extends Visitor<AstNode, Scope, void> {
         }
     }
 
+    enforce_turing_single_char(node: AstChar) {
+        const value = node.value
+        if (value.length > 1) throw set_location(
+            new EvaluationError("Multi-character string not allowed in turing conditions."),
+            node
+        )
+    }
+
     turing_list(node: AstList<AstNode>, tapes: string[], output: string[]) {
         let i = 0
         let positional = true
@@ -372,6 +380,8 @@ export class Evaluator extends Visitor<AstNode, Scope, void> {
                 char instanceof AstTuringNamedChar ||
                 char instanceof AstTuringNamedShiftChar
             ) {
+                this.enforce_turing_single_char(char)
+
                 const tape = char.tape.value
                 if (!tapes.includes(tape))
                     throw set_location(
@@ -386,6 +396,8 @@ export class Evaluator extends Visitor<AstNode, Scope, void> {
                 char instanceof AstChar ||
                 char instanceof AstTuringShiftChar
             ) {
+                this.enforce_turing_single_char(char)
+
                 if (!positional)
                     throw set_location(
                         new EvaluationError(
@@ -393,6 +405,7 @@ export class Evaluator extends Visitor<AstNode, Scope, void> {
                         ),
                         char,
                     )
+
                 output[i] = char.value
                 i++
             }
@@ -421,6 +434,7 @@ export class Evaluator extends Visitor<AstNode, Scope, void> {
         if (condition instanceof AstTuringCharList) {
             this.turing_list(condition, tapes, read)
         } else if (condition instanceof AstChar) {
+            this.enforce_turing_single_char(condition)
             read = read.map(() => condition.value)
         } else if (condition instanceof AstIdentifier)
             throw set_location(
