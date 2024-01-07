@@ -41,6 +41,12 @@ export default defineComponent({
 
         this.restartCompiler()
         setTimeout(() => this.compile(this.code), 1000)
+
+        window.addEventListener("storage", (event) => {
+            if (event.key !== "editorSource") return
+            this.code = event.newValue ?? ""
+            this.requestCompilation()
+        })
     },
     methods: {
         log(level: string, message: string, resetLine: boolean = false) {
@@ -54,13 +60,16 @@ export default defineComponent({
         },
 
         async editorChange(source: string) {
+            this.requestCompilation()
+            localStorage.editorSource = source
+        },
+
+        requestCompilation() {
             if (this.timeout) clearInterval(this.timeout)
             this.timeout = setTimeout(() => {
                 this.timeout = null
-                this.compile(source)
+                this.compile(this.code)
             }, this.changeInterval)
-
-            localStorage.editorSource = source
         },
 
         restartCompiler() {

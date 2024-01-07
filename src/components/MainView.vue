@@ -72,7 +72,11 @@ export default defineComponent({
         graph: make_graph(),
         canvas: null as Canvas | null,
     }),
-    mounted() {},
+    mounted() {
+        window.addEventListener("storage", (event) => {
+            if (event.key === "saved_graphs") this.update_graph()
+        })
+    },
     watch: {
         objects() {
             this.update_graph()
