@@ -184,6 +184,24 @@ body {
     overscroll-behavior: contain;
 }
 
+*::-webkit-scrollbar {
+    width: 0.25rem;
+}
+*::-webkit-scrollbar-corner {
+    display: none;
+}
+*::-webkit-scrollbar-track {
+    display: none;
+}
+
+*::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+}
+*::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+
 main,
 #app {
     padding: 0;
