@@ -1,28 +1,46 @@
 <template>
-    <canvas
-        class="visualizer"
-        ref="canvas"
-        :style="canvasStyle"
-        @mousedown="mouseDown"
-        @mouseup="mouseUp"
-        @mousemove="mouseMove"
-        @mouseleave="mouseUp"
-    ></canvas>
+    <div class="visualizer">
+        <canvas
+            class="visualizer-canvas"
+            ref="canvas"
+            :style="canvasStyle"
+            @mousedown="mouseDown"
+            @mouseup="mouseUp"
+            @mousemove="mouseMove"
+            @mouseleave="mouseUp"
+        ></canvas>
+        <input
+            type="checkbox"
+            class="autofocus-checkbox"
+            title="Auto-focus"
+            v-model="autofocus"
+        >
+    </div>
 </template>
 
 <script lang="ts" setup>
-defineProps<{
-    value: GraphData
-}>()
+withDefaults(
+    defineProps<{
+        value: GraphData
+    }>(),
+    {}
+)
 defineEmits<{
-    (e: "mounted", event: any): void
+    (e: "mounted", event: Visualizer): void
     (e: "updated-graph", event: void): void
 }>()
 </script>
 
 <script lang="ts">
 import { type GraphData, type Vector2, Canvas, vec, get_loop_direction, normalize_angle_range, type GraphArc, get_curved_arc, type GraphUnits } from "../lib/graph"
-import { defineComponent, defineProps } from "vue"
+import { defineComponent, defineProps, withDefaults } from "vue"
+
+export interface Visualizer {
+    canvas: Canvas
+
+    autofocus(): void
+}
+
 
 export enum DragType {
     None = 0,
@@ -65,6 +83,8 @@ export default defineComponent({
             radius: 0
         },
 
+        autofocus: true as boolean,
+
         units: {
             node_radius: 20,
             arc_width: 5,
@@ -94,7 +114,10 @@ export default defineComponent({
         })
         window.addEventListener("load", this.load.bind(this))
 
-        this.$emit("mounted", this)
+        this.$emit("mounted", {
+            canvas: this.canvas,
+            autofocus: this.enable_autofocus.bind(this)
+        } as Visualizer)
     },
     updated() {
         this.load()
@@ -113,11 +136,27 @@ export default defineComponent({
             this.canvas.resize(rect.width * dpi, rect.height * dpi)
             this.canvas.scale(dpi)
         },
+        focus(pos: Vector2) {
+            const {width, height} = this.canvas.rect
+
+            this.canvas.offset(vec.diff(pos, [width/2, height/2]))
+        },
+
+        focus_center() {
+            const center_pos = vec.center(...Object.values(this.value.nodes))
+            console.log("autofocus on")
+            this.focus(center_pos)
+        },
+        enable_autofocus() {
+            this.autofocus = true
+        },
 
         request_frame() {
             this.frameHandle = requestAnimationFrame(this.frame.bind(this))
         },
         frame() {
+            if (this.autofocus) this.focus_center()
+
             this.resize()
             this.canvas.clear()
             this.canvas.offset()
@@ -387,6 +426,8 @@ export default defineComponent({
             const pos = this.canvas.from_render_pos(render_pos)
 
             if (this.drag.type) {
+                this.autofocus = false
+
                 const delta: Vector2 = vec.diff(render_pos, this.drag.start)
                 const drag_pos = vec.sum(this.drag.base, delta)
                 
@@ -492,9 +533,22 @@ export default defineComponent({
 </script>
 
 <style scoped>
-.visualizer {
+
+.visualizer,
+.visualizer-canvas {
     display: block;
     width: 100%;
     height: 100%;
+}
+
+.visualizer {
+    position: relative;
+}
+
+.autofocus-checkbox {
+    position: absolute;
+    right: 0.5rem;
+    top: 0.5rem;
+    z-index: 1;
 }
 </style>

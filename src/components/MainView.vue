@@ -19,7 +19,7 @@
                 <template v-slot:right>
                     <GraphVisualizer
                         :value="graph"
-                        @mounted="canvas = $event.canvas"
+                        @mounted="visualizer = $event"
                         @updated-graph="
                             selected ? save_graph(selectedName, graph) : null
                         "
@@ -46,7 +46,7 @@ defineProps<{
 import { defineComponent, defineProps } from "vue"
 import OutputMessages from "./OutputMessages.vue"
 import SplitView from "./SplitView.vue"
-import GraphVisualizer from "./GraphVisualizer.vue"
+import GraphVisualizer, { type Visualizer } from "./GraphVisualizer.vue"
 import SidebarArea from "./SidebarArea.vue"
 import { type SelectElement, type SelectEvent } from "./SelectMenu.vue"
 import { LangObject, Scope } from "../lib/evaluator"
@@ -58,6 +58,7 @@ import {
     type GraphData,
     Canvas,
     type Vector2,
+vec,
 } from "../lib/graph"
 
 export default defineComponent({
@@ -70,7 +71,7 @@ export default defineComponent({
     data: () => ({
         selected: [] as string[],
         graph: make_graph(),
-        canvas: null as Canvas | null,
+        visualizer: null as Visualizer | null,
     }),
     mounted() {
         window.addEventListener("storage", (event) => {
@@ -123,7 +124,7 @@ export default defineComponent({
             this.save_graph(name, this.graph)
         },
         generate_node_pos(): Vector2 {
-            const rect = this.canvas?.rect ?? { width: 500, height: 500 }
+            const rect = this.visualizer?.canvas.rect ?? { width: 500, height: 500 }
             return random_position([0, 0], [rect.width, rect.height])
         },
 
@@ -152,6 +153,7 @@ export default defineComponent({
 
         update_selected(path: string[]) {
             this.selected = path
+            this.visualizer?.autofocus()
         },
         get_object(path: string[]): LangObject | null {
             if (!this.objects) return null

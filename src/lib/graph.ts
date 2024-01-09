@@ -101,6 +101,15 @@ export const vec = {
     },
     proj(a: Vector2, b: Vector2) {
         return vec.prod( b, vec.dot(a, b) / vec.dot(b, b) )
+    },
+    center(...pos: Vector2[]) {
+        const x = pos.map(([x, _]) => x)
+        const y = pos.map(([_, y]) => y)
+        return vec.lerp(
+            [Math.max(...x), Math.max(...y)],
+            [Math.min(...x), Math.min(...y)],
+            0.5
+        )
     }
 }
 
