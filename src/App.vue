@@ -184,6 +184,13 @@ body {
     overscroll-behavior: contain;
 }
 
+* {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.1) rgba(0, 0, 0, 0);
+}
+*:hover {
+    scrollbar-color: rgba(255, 255, 255, 0.2) rgba(0, 0, 0, 0);
+}
 *::-webkit-scrollbar {
     width: 0.25rem;
 }
@@ -214,7 +221,9 @@ main,
 }
 
 * {
-    font-family: inherit;
+    font-family: "Droid Sans", monospace;
+    font-size: 15px;
+    font-weight: 400;
 }
 main {
     display: flex;
