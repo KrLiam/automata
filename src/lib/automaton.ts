@@ -463,9 +463,7 @@ export abstract class StateMachine<R extends TransitionSymbol, A extends any[]> 
         for (let size = max_read_length; size >= 1; size--) {
             const read_chars = tapes.map(t => t.read(size))
             const read = this.to_pattern(read_chars)
-            transitions = this.transition(state, read)
-
-            if (transitions.length) break
+            transitions.push(...this.transition(state, read))
         }
 
         const confs: ConfigurationNode[] = []
