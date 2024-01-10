@@ -543,6 +543,7 @@ export default defineComponent({
 
 .visualizer {
     position: relative;
+    overflow: hidden;
 }
 
 .autofocus-checkbox {
