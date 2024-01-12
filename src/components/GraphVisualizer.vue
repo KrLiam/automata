@@ -22,6 +22,7 @@
 withDefaults(
     defineProps<{
         value: GraphData
+        style: GraphStyle
     }>(),
     {}
 )
@@ -32,7 +33,7 @@ defineEmits<{
 </script>
 
 <script lang="ts">
-import { type GraphData, type Vector2, Canvas, vec, get_loop_direction, normalize_angle_range, type GraphArc, get_curved_arc, type GraphUnits } from "../lib/graph"
+import { type GraphData, type Vector2, Canvas, vec, get_loop_direction, normalize_angle_range, type GraphArc, get_curved_arc, type GraphUnits, type GraphStyle, type NodeStyle, type ArcStyle } from "../lib/graph"
 import { defineComponent, defineProps, withDefaults } from "vue"
 
 export interface Visualizer {
@@ -144,7 +145,6 @@ export default defineComponent({
 
         focus_center() {
             const center_pos = vec.center(...Object.values(this.value.nodes))
-            console.log("autofocus on")
             this.focus(center_pos)
         },
         enable_autofocus() {
@@ -222,11 +222,14 @@ export default defineComponent({
             // arcs
             const arrow_width = this.units.arc_arrow_width
             const arrow_height = this.units.arc_arrow_height
-            for (const { origin, destination, arc_pos, label_pos } of Object.values(this.value.arcs)) {
+            for (const [key, { origin, destination, arc_pos, label_pos }] of Object.entries(this.value.arcs)) {
                 const origin_pos = this.value.nodes[origin]
                 const dest_pos = this.value.nodes[destination]
                 const origin_radius = this.get_node_radius(origin)
                 const dest_radius = this.get_node_radius(destination)
+
+                const arc_style: ArcStyle | undefined = this.style.arcs[key]
+                const color = arc_style?.color ?? "#ffffff"
 
                 if (origin === destination) {
                     const radius = this.units.arc_loop_radius
@@ -251,9 +254,9 @@ export default defineComponent({
 
                     const arc_range = normalize_angle_range([angle - 0.76*Math.PI, angle + 0.5*Math.PI])
                     this.canvas.circle({
-                        pos, radius, width: this.units.arc_width, color:"#ffffff", range: arc_range
+                        pos, radius, width: this.units.arc_width, color, range: arc_range
                     })
-                    this.canvas.triangle({pos1, pos2, pos3, color: "#ffffff"})
+                    this.canvas.triangle({pos1, pos2, pos3, color})
                     continue
                 }
 
@@ -265,10 +268,10 @@ export default defineComponent({
                         pos: center,
                         radius: radius + this.units.arc_width/2,
                         width: this.units.arc_width,
-                        color: "#ffffff",
+                        color,
                         range
                     })
-                    this.canvas.triangle({pos1: arrow1, pos2: arrow2, pos3: arrow3, color: "#ffffff"})
+                    this.canvas.triangle({pos1: arrow1, pos2: arrow2, pos3: arrow3, color})
                     continue
                 }
 
@@ -283,12 +286,12 @@ export default defineComponent({
                 const pos2 = vec.sum(line_end, width)
                 const pos3 = vec.sum(line_end, vec.negated(width))
 
-                this.canvas.triangle({pos1, pos2, pos3, color: "#ffffff"})
+                this.canvas.triangle({pos1, pos2, pos3, color})
                 this.canvas.line({
                     pos1: line_start,
                     pos2: line_end,
                     width: this.units.arc_width,
-                    color: "#ffffff",
+                    color,
                 })
             }
 
@@ -316,12 +319,15 @@ export default defineComponent({
 
             // nodes
             for (const [name, [x, y]] of Object.entries(this.value.nodes)) {
+                const node_style: NodeStyle | undefined = this.style.nodes[name]
+                const color = node_style?.color ?? "#ffffff"
+
                 const radius = this.units.node_radius
                 
                 if (this.value.finals.includes(name)) this.canvas.circle({
-                    pos: [x, y], radius: radius + 6.25, width: 2.5, color: "#ffffff"
+                    pos: [x, y], radius: radius + 6.25, width: 2.5, color
                 })
-                this.canvas.disk({ pos: [x, y], radius, color: "#ffffff"})
+                this.canvas.disk({ pos: [x, y], radius, color})
    
                 const metrics = this.canvas.measureText({ text: name, size: 20 })
                 if (metrics.width >= radius * 2) {
@@ -354,8 +360,11 @@ export default defineComponent({
             // labels
             for (const [key, arc] of Object.entries(this.value.arcs)) {
                 const {slider_pos, text_pos} = this.get_label_pos(arc)
+
+                const arc_style: ArcStyle | undefined = this.style.arcs[key]
+                const color = arc_style?.color ?? "#ffffff"
                 
-                this.canvas.disk({pos: slider_pos, color:"#ffffff", radius: this.units.arc_slider_radius})
+                this.canvas.disk({pos: slider_pos, color, radius: this.units.arc_slider_radius})
 
                 let offset = 0
                 for (const label of arc.labels) {

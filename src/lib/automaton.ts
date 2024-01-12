@@ -1,6 +1,5 @@
 export class ComputationError extends Error {}
 
-
 export function is_iterable(obj: any): obj is Iterable<any> {
     if (obj == null) {
         return false
@@ -27,22 +26,25 @@ export function extend<T>(container: T[] | Set<T>, values: Iterable<T>) {
     }
 }
 
-
-export type JsonValue = (
-    null | boolean | number | string | {[key: string]: JsonValue} | JsonValue[]
-)
+export type JsonValue =
+    | null
+    | boolean
+    | number
+    | string
+    | { [key: string]: JsonValue }
+    | JsonValue[]
 
 export function json_equal(a: JsonValue, b: JsonValue): boolean {
     if (a instanceof Array) {
-        if (!(b instanceof Array)) return false;
-        if (a.length !== b.length) return false;
-        return a.every((v, i) => json_equal(v, b[i]));
+        if (!(b instanceof Array)) return false
+        if (a.length !== b.length) return false
+        return a.every((v, i) => json_equal(v, b[i]))
     }
     if (a instanceof Object) {
         if (!(b instanceof Object) || b instanceof Array) return false
 
-        const a_keys = Object.keys(a);
-        const b_keys = Object.keys(b);
+        const a_keys = Object.keys(a)
+        const b_keys = Object.keys(b)
         if (a_keys.length != b_keys.length) return false
 
         for (const key of a_keys) {
@@ -51,19 +53,15 @@ export function json_equal(a: JsonValue, b: JsonValue): boolean {
         return true
     }
 
-    return a === b;
+    return a === b
 }
 
-export function json_contains(
-    values: Iterable<JsonValue>,
-    value: JsonValue,
-) {
+export function json_contains(values: Iterable<JsonValue>, value: JsonValue) {
     for (const element of values) {
         if (json_equal(element, value)) return true
     }
     return false
 }
-
 
 export const Epsilon = ""
 export const Blank = " "
@@ -153,7 +151,6 @@ export function make_state_conversion_map(
     return state_map
 }
 
-
 export type TapeState = [string, number]
 
 export class Tape {
@@ -219,11 +216,12 @@ export interface ConfigurationNode {
     tapes: TapeState[]
 }
 
-
 export type TransitionSymbol = string | string[]
 
 export function match_read_pattern<R extends TransitionSymbol>(
-    pattern: R, value: R, literal_epsilon: boolean = false
+    pattern: R,
+    value: R,
+    literal_epsilon: boolean = false,
 ) {
     if (!literal_epsilon && pattern === Epsilon) return true
     if (typeof pattern === "string") return pattern === value
@@ -235,7 +233,6 @@ export function match_read_pattern<R extends TransitionSymbol>(
     return true
 }
 
-
 export type TransitionMapValue<A extends JsonValue[]> = [State, ...A]
 
 export type TransitionSymbolMap<A extends JsonValue[]> = {
@@ -245,7 +242,12 @@ export type TransitionMapObject<A extends JsonValue[]> = {
     [state: State]: TransitionSymbolMap<A>
 }
 
-export type Transition<R extends TransitionSymbol, A extends JsonValue[]> = [State, R, State, ...A]
+export type Transition<R extends TransitionSymbol, A extends JsonValue[]> = [
+    State,
+    R,
+    State,
+    ...A,
+]
 
 export abstract class StateMachine<R extends TransitionSymbol, A extends any[]> {
     initial_state: State
@@ -274,7 +276,7 @@ export abstract class StateMachine<R extends TransitionSymbol, A extends any[]> 
 
         return map
     }
-    
+
     constructor(
         transitions: Iterable<Transition<R, A>>,
         initial_state: State,
@@ -287,11 +289,10 @@ export abstract class StateMachine<R extends TransitionSymbol, A extends any[]> 
         this.map = this.get_transition_map(transitions)
         this.initial_state = initial_state
         this.final_states = new Set(final_states)
-        this.tapes = (
-            tapes instanceof Array ?
-            tapes :
-            Array.from(new Array(tapes), (_, k) => k.toString())
-        )
+        this.tapes =
+            tapes instanceof Array
+                ? tapes
+                : Array.from(new Array(tapes), (_, k) => k.toString())
         this.states = new Set([...states, ...this.transition_states()])
         this.bounded = bounded
 
@@ -301,8 +302,12 @@ export abstract class StateMachine<R extends TransitionSymbol, A extends any[]> 
         this.alphabet = new Set([...alphabet, ...symbols])
     }
 
-    encode_key(read: R): string { return JSON.stringify(read) }
-    decode_key(key: string): R { return JSON.parse(key) }
+    encode_key(read: R): string {
+        return JSON.stringify(read)
+    }
+    decode_key(key: string): R {
+        return JSON.parse(key)
+    }
     abstract to_pattern(value: TransitionSymbol): R
 
     transition(state: string): TransitionSymbolMap<A> | undefined
@@ -311,7 +316,7 @@ export abstract class StateMachine<R extends TransitionSymbol, A extends any[]> 
     transition(
         state: string,
         read: R | null = null,
-        literal: boolean = false
+        literal: boolean = false,
     ): TransitionSymbolMap<A> | Transition<R, A>[] | undefined {
         const symbol_map = this.map[state]
         if (read === null) return symbol_map
@@ -416,7 +421,10 @@ export abstract class StateMachine<R extends TransitionSymbol, A extends any[]> 
 
         for (const [start, _, end_values] of this.traverse()) {
             states.add(start)
-            extend(states, end_values.map(([state]) => state))
+            extend(
+                states,
+                end_values.map(([state]) => state),
+            )
         }
         return states
     }
@@ -435,13 +443,12 @@ export abstract class StateMachine<R extends TransitionSymbol, A extends any[]> 
         return true
     }
 
-
     initial_configuration(input: string): ConfigurationNode {
-        const input_tape: TapeState = [input, 0]
-        const extra_tapes: TapeState[] = this.tapes.slice(1).map(() => ["", 0])
+        const input_tape: TapeState = [input.length ? input : " ", 0]
+        const extra_tapes: TapeState[] = this.tapes.slice(1).map(() => [" ", 0])
 
         const state = this.initial_state
-        const tapes = [ input_tape, ...extra_tapes ]
+        const tapes = [input_tape, ...extra_tapes]
         return {
             state,
             accepted: this.is_acceptable(state, tapes),
@@ -453,32 +460,46 @@ export abstract class StateMachine<R extends TransitionSymbol, A extends any[]> 
 
     abstract is_acceptable(state: State, tapes: TapeState[]): boolean
 
-    step(node: ConfigurationNode): ConfigurationNode[] {
+    step_transition(node: ConfigurationNode): Transition<R, A>[] {
         const state = node.state
-        const tapes = node.tapes.map(([value, pos]) => new Tape(value, pos, this.bounded))
+        const tapes = node.tapes.map(
+            ([value, pos]) => new Tape(value, pos, this.bounded),
+        )
 
-        const max_read_length = Math.max(...Array.from(this.alphabet, str => str.length))
+        const max_read_length = Math.max(
+            1,
+            ...Array.from(this.alphabet, (str) => str.length),
+        )
 
         let transitions: Transition<R, A>[] = []
         for (let size = max_read_length; size >= 1; size--) {
-            const read_chars = tapes.map(t => t.read(size))
+            const read_chars = tapes.map((t) => t.read(size))
             const read = this.to_pattern(read_chars)
             transitions.push(...this.transition(state, read))
         }
 
+        return transitions
+    }
+
+    step(node: ConfigurationNode): ConfigurationNode[] {
+        const tapes = node.tapes.map(
+            ([value, pos]) => new Tape(value, pos, this.bounded),
+        )
+
+        const transitions = this.step_transition(node)
         const confs: ConfigurationNode[] = []
 
         for (const transition of transitions) {
-            const new_tapes = tapes.map(t => t.copy())
+            const new_tapes = tapes.map((t) => t.copy())
             this.apply_transition(transition, new_tapes)
-            
+
             const new_state = transition[2]
-            const tape_state: TapeState[] = new_tapes.map(t => [t.value, t.pos])
+            const tape_state: TapeState[] = new_tapes.map((t) => [t.value, t.pos])
 
             confs.push({
                 state: new_state,
                 accepted: this.is_acceptable(new_state, tape_state),
-                tapes: tape_state
+                tapes: tape_state,
             })
         }
 
@@ -486,9 +507,7 @@ export abstract class StateMachine<R extends TransitionSymbol, A extends any[]> 
     }
 
     *compute(input: string): Generator<ConfigurationNode[]> {
-        let confs: ConfigurationNode[] = [
-            this.initial_configuration(input)
-        ]
+        let confs: ConfigurationNode[] = [this.initial_configuration(input)]
 
         while (confs.length) {
             yield [...confs]
@@ -496,7 +515,7 @@ export abstract class StateMachine<R extends TransitionSymbol, A extends any[]> 
             const next_confs = []
             for (const conf of confs) {
                 if (conf.accepted) continue
-                
+
                 next_confs.push(...this.step(conf))
             }
             confs = next_confs
@@ -505,11 +524,10 @@ export abstract class StateMachine<R extends TransitionSymbol, A extends any[]> 
 
     test(input: string) {
         for (const confs of this.compute(input)) {
-            if (confs.some(conf => conf.accepted)) return true
+            if (confs.some((conf) => conf.accepted)) return true
         }
         return false
     }
-
 
     abstract reenumerate(names: Iterable<string>): StateMachine<R, A>
 
@@ -527,16 +545,20 @@ export abstract class StateMachine<R extends TransitionSymbol, A extends any[]> 
 
         const transitions: Transition<R, A>[] = Array.from(
             this.transitions(),
-            ([start, symbol, end, ...args]) => [name_map[start], symbol, name_map[end], ...args],
+            ([start, symbol, end, ...args]) => [
+                name_map[start],
+                symbol,
+                name_map[end],
+                ...args,
+            ],
         )
         const final = Array.from(this.final_states, (s) => name_map[s])
         const initial = name_map[this.initial_state]
         const states = Array.from(this.states, (s) => name_map[s])
 
-        return {transitions, states, initial, final}
+        return { transitions, states, initial, final }
     }
 }
-
 
 export type FiniteTransition = Transition<string, []>
 export type FiniteTransitionMap = {
@@ -550,10 +572,10 @@ export class FiniteAutomaton extends StateMachine<string, []> {
         final_states: Set<State> | State[] = [],
         states: Set<State> | State[] = [],
         alphabet: Set<string> | string[] = [],
-        ) {
-            super(transitions, initial_state, final_states, 1, states, alphabet, true)
-        }
-        
+    ) {
+        super(transitions, initial_state, final_states, 1, states, alphabet, true)
+    }
+
     to_pattern(value: TransitionSymbol): string {
         if (value instanceof Array) return value[0]
         return value
@@ -610,7 +632,11 @@ export class FiniteAutomaton extends StateMachine<string, []> {
                 if (!end_state_set.size) continue
                 const end_state_name = join_state_set(end_state_set)
 
-                const transition: FiniteTransition = [state_name, symbol, end_state_name]
+                const transition: FiniteTransition = [
+                    state_name,
+                    symbol,
+                    end_state_name,
+                ]
                 transitions.push(transition)
 
                 if (
@@ -709,9 +735,14 @@ export class FiniteAutomaton extends StateMachine<string, []> {
     }
 
     reenumerate(names: Iterable<string>): FiniteAutomaton {
-        const {transitions, initial, final, states} = this.reenumerated_states(names)
+        const { transitions, initial, final, states } =
+            this.reenumerated_states(names)
         return new FiniteAutomaton(
-            transitions, initial, final, states, this.alphabet
+            transitions,
+            initial,
+            final,
+            states,
+            this.alphabet,
         )
     }
 }
@@ -762,25 +793,29 @@ export function format_transition_table(automaton: FiniteAutomaton) {
     return lines.join("\n")
 }
 
-
 export type TuringShiftChar = ">" | "<" | "-"
 export type TuringTransition = Transition<string[], [string[], TuringShiftChar[]]>
-export type TuringTransitionMapValue = TransitionMapValue<[string[], TuringShiftChar[]]>
+export type TuringTransitionMapValue = TransitionMapValue<
+    [string[], TuringShiftChar[]]
+>
 
-export const shift_number: {[ch: string]: number} = {
+export const shift_number: { [ch: string]: number } = {
     ">": 1,
     "<": -1,
     "-": 0,
 }
 
-export class TuringMachine extends StateMachine<string[], [string[], TuringShiftChar[]]> {
+export class TuringMachine extends StateMachine<
+    string[],
+    [string[], TuringShiftChar[]]
+> {
     to_pattern(value: TransitionSymbol): string[] {
         if (value instanceof Array) return value
         return this.tapes.map(() => value)
     }
 
     apply_transition(transition: TuringTransition, tapes: Tape[]): void {
-        const [ _, __, ___, write_chars, shift_chars] = transition
+        const [_, __, ___, write_chars, shift_chars] = transition
 
         for (let i = 0; i < tapes.length; i++) {
             const tape = tapes[i]
@@ -846,9 +881,15 @@ export class TuringMachine extends StateMachine<string[], [string[], TuringShift
     }
 
     reenumerate(names: Iterable<string>): TuringMachine {
-        const {transitions, initial, final, states} = this.reenumerated_states(names)
+        const { transitions, initial, final, states } =
+            this.reenumerated_states(names)
         return new TuringMachine(
-            transitions, initial, final, this.tapes, states, this.alphabet
+            transitions,
+            initial,
+            final,
+            this.tapes,
+            states,
+            this.alphabet,
         )
     }
 }

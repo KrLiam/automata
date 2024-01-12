@@ -11,14 +11,17 @@
             >
                 <template v-slot:left>
                     <SidebarArea
-                        class="sidebar"
+                        class="main-sidebar"
+                        :show_test_input="!testing"
                         :selected="get_selected_object()"
                         @selected="update_selected"
+                        @test="test"
                     ></SidebarArea>
                 </template>
                 <template v-slot:right>
                     <GraphVisualizer
                         :value="graph"
+                        :style="graph_style ?? {nodes:{},arcs:{}}"
                         @mounted="visualizer = $event"
                         @updated-graph="
                             selected ? save_graph(selectedName, graph) : null
@@ -28,7 +31,18 @@
             </SplitView>
         </template>
         <template v-slot:right>
-            <OutputMessages class="output" :messages="messages"></OutputMessages>
+            <TestingTool
+                v-if="testing"
+                :input="test_input"
+                :automaton="get_selected_automaton()"
+                @close="close_test"
+                @updated-state="updated_test_state"
+            ></TestingTool>
+            <OutputMessages
+                v-else
+                class="main-output"
+                :messages="messages"
+            ></OutputMessages>
         </template>
     </SplitView>
 </template>
@@ -40,17 +54,22 @@ defineProps<{
     messages: Message[]
     objects: Scope | null
 }>()
+defineEmits<{
+    (e: "lock-compilation", event: void): void
+    (e: "unlock-compilation", event: void): void
+}>()
 </script>
 
 <script lang="ts">
 import { defineComponent, defineProps } from "vue"
 import OutputMessages from "./OutputMessages.vue"
 import SplitView from "./SplitView.vue"
+import TestingTool, { type Instance } from "./TestingTool.vue"
 import GraphVisualizer, { type Visualizer } from "./GraphVisualizer.vue"
 import SidebarArea from "./SidebarArea.vue"
 import { type SelectElement, type SelectEvent } from "./SelectMenu.vue"
 import { LangObject, Scope } from "../lib/evaluator"
-import { FiniteAutomaton, StateMachine, TuringMachine } from "../lib/automaton"
+import { FiniteAutomaton, StateMachine, TuringMachine, type Transition } from "../lib/automaton"
 import { convert_turing_xml } from "../lib/export"
 import {
     make_graph,
@@ -59,11 +78,14 @@ import {
     Canvas,
     type Vector2,
 vec,
+type GraphStyle,
+tuple_key,
 } from "../lib/graph"
 
 export default defineComponent({
     components: {
         OutputMessages,
+        TestingTool,
         GraphVisualizer,
         SidebarArea,
         SplitView,
@@ -71,7 +93,11 @@ export default defineComponent({
     data: () => ({
         selected: [] as string[],
         graph: make_graph(),
+        graph_style: null as GraphStyle | null,
         visualizer: null as Visualizer | null,
+
+        testing: false as boolean,
+        test_input: null as string | null,
     }),
     mounted() {
         window.addEventListener("storage", (event) => {
@@ -106,8 +132,8 @@ export default defineComponent({
             localStorage.saved_graphs = JSON.stringify(graphs)
         },
         update_graph() {
-            const obj = this.get_selected_object()
-            if (!obj || !(obj.value instanceof StateMachine)) {
+            const value = this.get_selected_automaton()
+            if (!value) {
                 this.graph = make_graph()
                 return
             }
@@ -116,7 +142,7 @@ export default defineComponent({
 
             const saved = this.get_graph(name)
             this.graph = make_graph(
-                obj.value,
+                value,
                 saved,
                 node => this.generate_node_pos(),
             )
@@ -154,6 +180,8 @@ export default defineComponent({
         update_selected(path: string[]) {
             this.selected = path
             this.visualizer?.autofocus()
+
+            this.close_test()
         },
         get_object(path: string[]): LangObject | null {
             if (!this.objects) return null
@@ -184,6 +212,65 @@ export default defineComponent({
             if (!obj) return null
             return obj
         },
+        get_selected_automaton(): StateMachine<any, any> | null {
+            const obj = this.get_selected_object()
+            if (!obj) return null
+
+            return obj.value instanceof StateMachine ? obj.value : null
+        },
+
+        test(input: string) {
+            const automaton = this.get_selected_automaton()
+            if (!automaton) return
+
+            this.test_input = input
+            this.testing = true
+
+            this.$emit("lock-compilation")
+        },
+        close_test() {
+            this.testing = false
+            this.test_input = null
+            this.graph_style = null
+
+            this.$emit("unlock-compilation")
+        },
+        updated_test_state(instances: Instance[]) {
+            const style: GraphStyle = {nodes:{},arcs:{}}
+
+            const color_codes: {[id: number]: string} = {
+                0: "#c0c0c0", // unselected
+                1: "#e1b217", // selected
+                2: "#f83939", // rejected
+                3: "#00bd7e", // accepted
+            }
+            const node_colors: {[name: string]: number} = {}
+
+            for (const instance of instances) {
+                const state = instance.conf.state
+                const color_id = (
+                    !instance.selected ? 0 :
+                    instance.accepted ? 3 :
+                    instance.accepted === false ? 2 :
+                    1
+                )
+    
+                node_colors[state] = Math.max(node_colors[state] ?? 0, color_id)
+
+                if (!instance.selected || instance.accepted !== null) continue
+
+                for (const [start, _, end] of instance.transitions) {
+                    const key = tuple_key(start, end)
+                    style.arcs[key] = {color: "#e1b217"}
+                }
+            }
+
+            for (const [name, color_id] of Object.entries(node_colors)) {
+                style.nodes[name] = {color: color_codes[color_id]}
+            }
+
+            this.graph_style = style
+        }
     },
 })
 </script>
@@ -206,11 +293,42 @@ export default defineComponent({
     background: var(--background-13);
 }
 
-.sidebar {
+.main-sidebar {
     padding: 15px 0 0 15px;
 }
 
-.output {
+.main-output {
     height: 100%;
+}
+
+
+.main-content button {
+    font-size: 1em;
+    position: relative;
+    padding: 0.5em 1.25em;
+    cursor: pointer;
+    background: none;
+    border: none;
+    color: inherit;
+}
+.main-content button:hover::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+    background: color-mix(in srgb, currentColor 40%, transparent);
+}
+.main-content button.green:hover::before {
+    background: color-mix(in srgb, var(--detail-green) 30%, transparent);
+}
+
+.main-content .green {
+color: var(--detail-green);
+}
+.main-content .text-small {
+    font-size: 0.75em;
 }
 </style>

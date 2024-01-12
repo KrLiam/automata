@@ -28,9 +28,11 @@ export default defineComponent({
         const source = localStorage.editorSource as string
         return {
             compiler: null as Worker | null,
+            locked_compilation: false as boolean,
+            pending_compilation: false as boolean,
             compilerBusy: false,
             timeout: null as number | null,
-            changeInterval: 500,
+            changeInterval: 400,
             code: source ? source : example_code,
             messages: [] as any[],
             objects: null as Scope | null,
@@ -60,16 +62,31 @@ export default defineComponent({
         },
 
         async editorChange(source: string) {
-            this.requestCompilation()
             localStorage.editorSource = source
-        },
 
-        requestCompilation() {
             if (this.timeout) clearInterval(this.timeout)
             this.timeout = setTimeout(() => {
                 this.timeout = null
-                this.compile(this.code)
+                this.requestCompilation()
             }, this.changeInterval)
+        },
+
+        lockCompilation() {
+            if (this.compilerBusy) this.restartCompiler()
+            this.locked_compilation = true
+        },
+        unlockCompilation() {
+            this.locked_compilation = false
+            if (this.pending_compilation) this.requestCompilation()
+        },
+        requestCompilation() {
+            if (this.locked_compilation) {
+                this.pending_compilation = true
+                return
+            }
+            this.pending_compilation = false
+
+            this.compile(this.code)
         },
 
         restartCompiler() {
@@ -146,7 +163,12 @@ export default defineComponent({
                 />
             </template>
             <template v-slot:right>
-                <MainView :messages="messages" :objects="objects"></MainView>
+                <MainView
+                    :messages="messages"
+                    :objects="objects"
+                    @lock-compilation="lockCompilation"
+                    @unlock-compilation="unlockCompilation"
+                ></MainView>
             </template>
         </SplitView>
     </main>
@@ -161,7 +183,10 @@ export default defineComponent({
     --black: #181818;
     --text: rgba(235, 235, 235, 0.64);
 
-    --detail-green: hsla(160, 100%, 37%, 1);
+    --detail-green: #00bd7e;
+    --detail-yellow: #e1b217;
+    --detail-red: #f83939;
+    --detail-gray: #c0c0c0;
 
     --error: #f48771;
     --success: #64fa61;
@@ -208,6 +233,11 @@ body {
     background: rgba(255, 255, 255, 0.2);
 }
 
+ul {
+    list-style-type: none;
+    padding: 0;
+    margin: 0;
+}
 
 main,
 #app {
