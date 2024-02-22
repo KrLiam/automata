@@ -120,16 +120,15 @@ export function circle_intersection(
     r1: number,
     [x2, y2]: Vector2,
     r2: number,
-): [Vector2, Vector2] {
+): [Vector2, Vector2] | null {
     const centerdx = x1 - x2
     const centerdy = y1 - y2
     const R = Math.sqrt(centerdx * centerdx + centerdy * centerdy)
-    if (!(Math.abs(r1 - r2) <= R && R <= r1 + r2)) {
-        // no intersection
-        throw new Error("Circles do not intersect")
-    }
-    // intersection(s) should exist
 
+    // no intersection
+    if (!(Math.abs(r1 - r2) <= R && R <= r1 + r2)) return null
+
+    // intersection(s) should exist
     const R2 = R * R
     const R4 = R2 * R2
     const a = (r1 * r1 - r2 * r2) / (2 * R2)
@@ -608,6 +607,14 @@ export function random_position(origin: Vector2, size: Vector2): Vector2 {
     return [Math.floor(x), Math.floor(y)]
 }
 
+export type CurvedArc = {
+    center: Vector2
+    radius: number
+    angle_range: Vector2
+    arrow1: Vector2
+    arrow2: Vector2
+    arrow3: Vector2
+}
 export function get_curved_arc(
     pos1: Vector2,
     pos2: Vector2,
@@ -615,7 +622,7 @@ export function get_curved_arc(
     radius2: number,
     peak_value: number,
     units: GraphUnits,
-) {
+): CurvedArc | null {
     const direction = vec.diff(pos2, pos1)
     const mean1 = vec.quot(vec.sum(pos1, pos2), 2)
 
@@ -635,7 +642,10 @@ export function get_curved_arc(
     const center = line_intersection(m1, mean1, m2, mean2)
     const radius = vec.magnitude(vec.diff(pos1, center))
 
-    const [int1, int2] = circle_intersection(pos2, radius2, center, radius)
+    const intersec = circle_intersection(pos2, radius2, center, radius)
+    if (intersec === null) return null;
+    const [int1, int2] = intersec;
+
     const arrow1 =
         vec.sqdistance(int1, pos3) > vec.sqdistance(int2, pos3) ? int2 : int1
     let arrow_direction = vec.rotated_right(vec.diff(arrow1, center))
@@ -662,11 +672,11 @@ export function get_curved_arc(
     const delta1 = vec.sum(origin_delta, origin_offset)
 
     const delta2 = vec.diff(arrow_end, center)
-    let range = normalize_angle_range([
+    let angle_range = normalize_angle_range([
         vec.angle(vec.negated_y(delta2)),
         vec.angle(vec.negated_y(delta1)),
     ])
-    if (peak_value < 0) range = [range[1], range[0]]
+    if (peak_value < 0) angle_range = [angle_range[1], angle_range[0]]
 
-    return { center, radius, range, arrow1, arrow2, arrow3 }
+    return { center, radius, angle_range, arrow1, arrow2, arrow3 }
 }

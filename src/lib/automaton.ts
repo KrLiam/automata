@@ -293,7 +293,9 @@ export abstract class StateMachine<R extends TransitionSymbol, A extends any[]> 
             tapes instanceof Array
                 ? tapes
                 : Array.from(new Array(tapes), (_, k) => k.toString())
-        this.states = new Set([...states, ...this.transition_states()])
+        this.states = new Set([
+            initial_state, ...final_states, ...states, ...this.transition_states()
+        ])
         this.bounded = bounded
 
         const symbols = this.transition_alphabet()

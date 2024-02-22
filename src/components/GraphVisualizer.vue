@@ -261,18 +261,25 @@ export default defineComponent({
                 }
 
                 if (arc_pos !== 0) {
-                    const {center, radius, range, arrow1, arrow2, arrow3} = get_curved_arc(
+                    const result = get_curved_arc(
                         origin_pos, dest_pos, origin_radius, dest_radius, arc_pos, this.units
                     )
-                    this.canvas.circle({
-                        pos: center,
-                        radius: radius + this.units.arc_width/2,
-                        width: this.units.arc_width,
-                        color,
-                        range
-                    })
-                    this.canvas.triangle({pos1: arrow1, pos2: arrow2, pos3: arrow3, color})
-                    continue
+                    // if failed to get curved arc info, this section is ignored and fallbacks
+                    // to default line arcs.
+                    if (result !== null) {
+                        const {center, radius, angle_range, arrow1, arrow2, arrow3} = result
+
+                        this.canvas.circle({
+                            pos: center,
+                            radius: radius + this.units.arc_width/2,
+                            width: this.units.arc_width,
+                            color,
+                            range: angle_range
+                        })
+                        this.canvas.triangle({pos1: arrow1, pos2: arrow2, pos3: arrow3, color})
+
+                        continue
+                    }
                 }
 
                 const direction = vec.normalized(vec.diff(dest_pos, origin_pos))
