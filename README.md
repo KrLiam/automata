@@ -11,4 +11,4 @@ With this project, you can
 - Test the automatons step-by-step with the dedicated testing tool;
 - WIP.
 
-Check out the [website](https:krliam.github.io/automata).
+Check out the [website](https://krliam.github.io/automata).
