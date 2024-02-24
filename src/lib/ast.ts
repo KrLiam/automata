@@ -41,10 +41,48 @@ export class AstNode {
     }
 }
 
+
+export class AstExpression extends AstNode {}
+
+
+export type AstUnaryArgs = AstNodeArgs & {
+    op: string
+    value: AstExpression
+}
+export class AstUnary extends AstExpression {
+    op: string
+    value: AstExpression
+
+    constructor({ op, value, ...args }: AstUnaryArgs) {
+        super(args)
+        this.op = op
+        this.value = value
+    }
+}
+
+export type AstBinaryArgs = AstNodeArgs & {
+    op: string
+    left: AstExpression
+    right: AstExpression
+}
+export class AstBinary extends AstExpression {
+    op: string
+    left: AstExpression
+    right: AstExpression
+
+    constructor({ op, left, right, ...args }: AstBinaryArgs) {
+        super(args)
+        this.op = op
+        this.left = left
+        this.right = right
+    }
+}
+
+
 export type AstIdentifierArgs = AstNodeArgs & {
     value: string
 }
-export class AstIdentifier extends AstNode {
+export class AstIdentifier extends AstExpression {
     value: string
 
     constructor({ value, ...args }: AstIdentifierArgs) {
@@ -52,6 +90,7 @@ export class AstIdentifier extends AstNode {
         this.value = value
     }
 }
+
 
 export type AstListArgs<T> = AstNodeArgs & {
     values: T[]
@@ -272,5 +311,24 @@ export class AstTuringTransition extends AstTransition {
         super(args)
         this.write = write
         this.shift = shift
+    }
+}
+
+
+export type AstAutomatonAssignmentArgs = AstNodeArgs & {
+    type: string
+    target: AstIdentifier
+    expression: AstExpression
+}
+export class AstAutomatonAssignment extends AstNode {
+    type: string
+    target: AstIdentifier
+    expression: AstExpression
+
+    constructor({ type, target, expression, ...args }: AstAutomatonAssignmentArgs) {
+        super(args)
+        this.type = type
+        this.target = target
+        this.expression = expression
     }
 }

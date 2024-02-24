@@ -68,7 +68,7 @@ import TestingTool, { type Instance } from "./TestingTool.vue"
 import GraphVisualizer, { type Visualizer } from "./GraphVisualizer.vue"
 import SidebarArea from "./SidebarArea.vue"
 import { type SelectElement, type SelectEvent } from "./SelectMenu.vue"
-import { LangObject, Scope } from "../lib/evaluator"
+import { FiniteObject, LangObject, Scope } from "../lib/evaluator"
 import { FiniteAutomaton, StateMachine, TuringMachine, type Transition } from "../lib/automaton"
 import { convert_turing_xml } from "../lib/export"
 import {
@@ -189,7 +189,9 @@ export default defineComponent({
             const binding = this.objects.path(path)
             if (!binding) return null
 
+            
             const obj = binding.unwrap()
+            console.log("obj", obj, obj.constructor.name)
             if (!(obj instanceof LangObject)) return null
 
             return obj
@@ -202,10 +204,9 @@ export default defineComponent({
 
             if (name === "#det") {
                 const obj = this.get_object(namespace)
-                if (!obj || !(obj.value instanceof FiniteAutomaton)) return null
+                if (!(obj instanceof FiniteObject)) return null
 
-                const new_value = obj.value.determinize()
-                return new LangObject(new_value, new Scope())
+                return obj.$determinize()
             }
 
             const obj = this.get_object([...namespace, name])

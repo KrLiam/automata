@@ -1,4 +1,6 @@
 import {
+    AstAutomatonAssignment,
+    AstBinary,
     AstChar,
     AstFinalState,
     AstFiniteAutomaton,
@@ -17,6 +19,7 @@ import {
     AstTuringShiftChar,
     AstTuringShiftCharList,
     AstTuringTransition,
+    AstUnary,
 } from "./ast"
 import {
     FiniteAutomaton,
@@ -27,14 +30,23 @@ import {
     StateMachine,
 } from "./automaton"
 import { SourceLocation, set_location } from "./tokenstream"
-import { Visitor, rule } from "./visitor"
+import { Visitor, rule, type Class } from "./visitor"
 
-export function type_name(value: any): string {
+
+
+export function get_type(value: any): any {
     const type = typeof value
 
     if (type !== "object") return type
 
-    return Object.getPrototypeOf(value).constructor.name
+    return Object.getPrototypeOf(value).constructor
+}
+
+export function type_name(value: any): string {
+    const cls = get_type(value)
+
+    if (value instanceof LangObject) return cls.type_name
+    return cls.name
 }
 
 export class EvaluationError extends Error {
@@ -62,7 +74,7 @@ export class PreDefinitionUsageError extends EvaluationError {
     }
 }
 
-export class UndeclaredNameError extends EvaluationError {
+export class NameError extends EvaluationError {
     scope: Scope
     name: string
 
@@ -71,6 +83,21 @@ export class UndeclaredNameError extends EvaluationError {
 
         this.scope = scope
         this.name = name
+    }
+}
+
+
+export class InvalidOperation extends EvaluationError {
+    op: string
+    operands: any[]
+
+    constructor(op: string, ...operands: any[]) {
+        const operand_msg = operands.map(o => `'${type_name(o)}'`).join(", ")
+        const msg = `Invalid operand(s) for ${op}: ${operand_msg}`
+        super(msg)
+
+        this.op = op
+        this.operands = operands
     }
 }
 
@@ -175,7 +202,7 @@ export class Scope {
         if (!binding) {
             if (parent && this.parent) return this.parent.value(name)
             if (optional) return null
-            throw new UndeclaredNameError(this, name)
+            throw new NameError(this, name)
         }
 
         return binding.unwrap()
@@ -215,27 +242,114 @@ export class Scope {
     }
 }
 
-export type ObjectMethodMap = {
-    [name: string]: (...a: any[]) => LangObject | undefined
-}
+
+export type ObjectMethod = (...a: any[]) => LangObject | undefined
+
+export type ObjectMethodMap = {[name: string]: ObjectMethod}
+
 
 export class LangObject {
+    static type_name: string = "object"
+
     value: any
     scope: Scope | null
-    methods: ObjectMethodMap
 
-    constructor(
-        value: any,
-        scope: Scope | null = null,
-        methods: ObjectMethodMap | null = null,
-    ) {
+    declare static methods: ObjectMethodMap
+
+    constructor(value: any, scope: Scope | null = null) {
         this.value = value
         this.scope = scope
-        this.methods = methods == null ? {} : methods
+    }
+
+    static add_method(name: string, f: ObjectMethod) {
+        if (!this.methods) this.methods = {}
+
+        this.methods[name] = f
+    }
+
+    get_method(name: string): ObjectMethod | undefined {
+        const cls = <typeof LangObject> this.constructor
+        const methods: ObjectMethodMap = cls.methods ?? {}
+
+        const method = methods[name]
+        if (!method) return undefined
+
+        return method.bind(this)
     }
 }
 
-export class Evaluator extends Visitor<AstNode, Scope, void> {
+const NotImplemented = new LangObject(null)
+
+interface ObjectMethodDescriptor extends PropertyDescriptor {
+    value?: (...args: any) => LangObject | undefined
+}
+
+export function object_method(
+    target: LangObject,
+    name: string,
+    descriptor: ObjectMethodDescriptor
+) {
+    const func = descriptor.value
+    if (func) {
+        const target_cls = <typeof LangObject> target.constructor
+        target_cls.add_method(name, func)
+    }
+}
+
+export class FiniteObject extends LangObject {
+    static type_name: string = "finite automaton"
+
+    declare value: FiniteAutomaton
+
+    constructor(value: FiniteAutomaton, scope: Scope | null = null) {
+        super(value, scope)
+    }
+
+    @object_method
+    $union(other: any) {
+        if (!(other instanceof FiniteObject)) return NotImplemented
+
+        const automaton = this.value.union(other.value)
+        return new FiniteObject(automaton)
+    }
+
+    @object_method
+    $intersection(other: any) {
+        if (!(other instanceof FiniteObject)) return NotImplemented
+
+        const automaton = this.value.intersection(other.value)
+        return new FiniteObject(automaton)
+    }
+
+    @object_method
+    $complement() {
+        const automaton = this.value.complement()
+        return new FiniteObject(automaton)
+    }
+
+    @object_method
+    $determinize() {
+        const automaton = this.value.determinize()
+        return new FiniteObject(automaton)
+    }
+}
+
+export class TuringObject extends LangObject {
+    static type_name: string = "turing machine"
+    declare value: TuringMachine
+
+    constructor(value: TuringMachine, scope: Scope | null = null) {
+        super(value, scope)
+    }
+}
+
+export const object_types: {[name: string]: typeof LangObject} = {
+    object: LangObject,
+    finite: FiniteObject,
+    turing: TuringObject,
+}
+
+export class Evaluator extends Visitor<AstNode, Scope, any> {
     @rule(AstNode)
     fallback(node: AstNode) {}
 
@@ -271,7 +385,7 @@ export class Evaluator extends Visitor<AstNode, Scope, void> {
             initial.unwrap(),
             final.unwrap(),
         )
-        const obj = new LangObject(automaton, child_scope)
+        const obj = new FiniteObject(automaton, child_scope)
 
         try {
             binding.define(obj)
@@ -280,6 +394,92 @@ export class Evaluator extends Visitor<AstNode, Scope, void> {
             else throw err
         }
     }
+
+    @rule(AstAutomatonAssignment)
+    automaton_assignment(node: AstAutomatonAssignment, scope: Scope) {
+        const name = node.target.value
+        const binding = scope.declare(name)
+
+        const result = this.invoke(node.expression, scope)
+
+        const assign_type = object_types[node.type]
+        const result_type = get_type(result)
+
+        if (assign_type !== result_type) throw set_location(
+            new EvaluationError(`Cannot assign '${type_name(result)}' object to ${assign_type.type_name} '${name}'.`),
+            node.target
+        )
+
+        try {
+            binding.define(result)
+        } catch (err) {
+            if (err instanceof RedefinitionError) throw set_location(err, node.target)
+            else throw err
+        }
+    }
+
+    @rule(AstIdentifier)
+    identifier(node: AstIdentifier, scope: Scope): any {
+        try {
+            return scope.value(node.value)
+        }
+        catch (err: any) {
+            throw set_location(err, node)
+        }
+    }
+
+    @rule(AstBinary)
+    binary(node: AstBinary, scope: Scope): any {
+        const left = this.invoke(node.left, scope)
+        const right = this.invoke(node.right, scope)
+
+        if (!(left instanceof LangObject)) throw set_location(
+            new EvaluationError(`Left operand ${left} of ${node.op} is illegal value.`),
+            left
+        )
+
+        if (!(right instanceof LangObject)) throw set_location(
+            new EvaluationError(`Right operand ${right} of ${node.op} is illegal value.`),
+            right
+        )
+
+        const left_method = left.get_method("$" + node.op)
+        
+        if (left_method) {
+            const result = left_method(right)
+            if (result !== NotImplemented) return result
+        }
+        
+        const right_method = right.get_method("$reverse" + node.op)
+        
+        if (right_method) {
+            const result = right_method(left)
+            if (result !== NotImplemented) return result
+        }
+
+        throw set_location(
+            new InvalidOperation(node.op, left, right), node
+        )
+    }
+
+    @rule(AstUnary)
+    unary(node: AstUnary, scope: Scope): any {
+        const operand = this.invoke(node.value, scope)
+
+        if (!(operand instanceof LangObject)) throw set_location(
+            new EvaluationError(`Operand ${operand} of ${node.op} is illegal value.`),
+            operand
+        )
+
+        const method_name = "$" + node.op
+        const method = operand.get_method(method_name)
+        if (method === undefined) throw set_location(
+            new InvalidOperation(node.op, operand), node
+        )
+
+        return method()
+    }
+
 
     @rule(AstInitialState)
     initial(node: AstInitialState, scope: Scope) {
@@ -352,7 +552,7 @@ export class Evaluator extends Visitor<AstNode, Scope, void> {
             final.unwrap(),
             tapes,
         )
-        const obj = new LangObject(turing, child_scope)
+        const obj = new TuringObject(turing, child_scope)
 
         try {
             binding.define(obj)

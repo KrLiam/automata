@@ -47,7 +47,10 @@ export function underline_code(
         }
 
         if (start < stop) {
-            const underline = " ".repeat(start - 1) + "^".repeat(stop - start)
+            const code_section = Array.from(
+                code.slice(start - 1, stop), ch => ch !== " " ? "^" : " "
+            )
+            const underline = " ".repeat(start - 1) + code_section.join("")
             view.splice(index + 1, 0, underline)
             prefix.splice(index + 1, 0, ":")
         }

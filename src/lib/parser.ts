@@ -31,6 +31,10 @@ import {
     AstString,
     AstPrint,
     AstTest,
+    AstAutomatonAssignment,
+    AstExpression,
+    AstBinary,
+    AstUnary,
 } from "./ast"
 import { Token, set_location } from "./tokenstream"
 import { ParseError } from "./error"
@@ -44,6 +48,10 @@ export const keywords = [
     "tapes",
     "print",
     "test",
+    "union",
+    "intersection",
+    "complement",
+    "determinize",
 ]
 
 export enum Patterns {
@@ -54,13 +62,20 @@ export enum Patterns {
     tapes = "tapes\\b",
     print = "print\\b",
     test = "test\\b",
+    union = "union\\b",
+    intersection = "intersection\\b",
+    complement = "complement\\b",
+    determinize = "determinize\\b",
 
+    opening_parens = "\\(",
+    closing_parens = "\\)",
     opening_bracket = "\\{",
     closing_bracket = "\\}",
     opening_square_bracket = "\\[",
     closing_square_bracket = "\\]",
     semicolon = ";",
     colon = ":",
+    equals = "=",
     comma = ",",
     quote = '"',
     singlequote = "'",
@@ -96,7 +111,7 @@ export function get_default_parsers(): { [key: string]: Parser<AstNode> } {
         statement: new ChooseParser(
             option(pattern("initial"), new CallParser(parse_initial_state), true),
             option(pattern("final"), new CallParser(parse_final_states), true),
-            option(pattern("finite"), new CallParser(parse_finite_automaton), true),
+            option(pattern("finite"), delegate("finite")),
             option(pattern("turing"), delegate("turing"), true),
             option(pattern("print"), delegate("print")),
             option(pattern("test"), delegate("test")),
@@ -105,7 +120,21 @@ export function get_default_parsers(): { [key: string]: Parser<AstNode> } {
         print: new CallParser(parse_print_statement),
         test: new CallParser(parse_test_statement),
 
+        "finite": new CallParser(parse_finite_automaton),
         transition: new CallParser(parse_finite_transition),
+
+        "expression": delegate("expression:union"),
+        "expression:union": new BinaryParser(
+            pattern("union"), delegate("expression:intersection")
+        ),
+        "expression:intersection": new BinaryParser(
+            pattern("intersection"), delegate("expression:unary")
+        ),
+        "expression:unary": new UnaryParser(
+            [pattern("complement"), pattern("determinize")],
+            delegate("expression:primary")
+        ),
+        "expression:primary": new CallParser(parse_primary_expression),
 
         "expression:list:string": new ListParser(
             delegate("string"),
@@ -130,7 +159,7 @@ export function get_default_parsers(): { [key: string]: Parser<AstNode> } {
         "turing:statement": new ChooseParser(
             option(pattern("initial"), new CallParser(parse_initial_state), true),
             option(pattern("final"), new CallParser(parse_final_states), true),
-            option(pattern("finite"), new CallParser(parse_finite_automaton), true),
+            option(pattern("finite"), delegate("finite")),
             option(pattern("turing"), delegate("turing"), true),
             option(pattern("identifier"), delegate("turing:transition")),
         ),
@@ -502,6 +531,91 @@ export class ListParser<T extends AstNode> {
     }
 }
 
+
+export class BinaryParser {
+    operator: string
+    parser: Parser<AstExpression>
+
+    patterns: {[name: string]: string}
+
+    constructor(operator: TokenPattern, parser: Parser<AstExpression>) {
+        this.parser = parser;
+        
+        const [name, pattern] = operator
+        this.operator = name
+        this.patterns = {}
+        this.patterns[name] = pattern
+    }
+
+    parse_operands(stream: TokenStream): AstExpression[] {
+        const left = this.parser.parse(stream)
+
+        const keyword = stream.syntax(this.patterns, () => stream.get(this.operator))
+        if (!keyword) return [left]
+
+        return [left, ...this.parse_operands(stream)]
+    }
+
+    parse(stream: TokenStream): AstExpression {
+        let [left, ...operands] = this.parse_operands(stream)
+
+        if (!operands.length) return left
+
+        let right: AstExpression
+        [right, ...operands] = operands
+
+        let result = set_location(
+            new AstBinary({op: this.operator, left, right}),
+            left,
+            right
+        )
+        for (const operand of operands) {
+            result = set_location(
+                new AstBinary({op: this.operator, left: result, right: operand}),
+                result,
+                operand
+            )
+        }
+        return result
+    }
+}
+
+
+export class UnaryParser {
+    operators: string[]
+    parser: Parser<AstExpression>
+
+    patterns: {[name: string]: string}
+
+    constructor(operators: TokenPattern[], parser: Parser<AstExpression>) {
+        this.parser = parser;
+        
+        this.operators = []
+        this.patterns = {}
+
+        for (const operator of operators) {
+            const [name, pattern] = operator
+
+            this.operators.push(name)
+            this.patterns[name] = pattern
+        }
+    }
+    
+    parse(stream: TokenStream): AstExpression {
+        const keyword = stream.syntax(this.patterns, () => stream.get(...this.operators))
+        if (!keyword) return this.parser.parse(stream)
+
+        const value = this.parse(stream)
+
+        return set_location(
+            new AstUnary({op: keyword.type, value}),
+            keyword,
+            value
+        )
+    }
+}
+
+
 export function parse_string(stream: TokenStream): AstString {
     const [quote, singlequote] = stream.expect_multiple("quote", "singlequote")
     const opening = (quote ?? singlequote) as Token
@@ -594,11 +708,23 @@ export function parse_finite_transition(stream: TokenStream) {
 }
 
 export function parse_finite_automaton(stream: TokenStream) {
+    const keyword = stream.get("finite")
     const name = delegate("identifier", stream) as AstIdentifier
+
+    if (stream.get("equals")) {
+        const expression = delegate("expression", stream)
+
+        return set_location(
+            new AstAutomatonAssignment({type: "finite", target: name, expression}),
+            keyword ??
+            name, expression
+        )
+    }
+
     const body = delegate("root", stream) as AstRoot
 
     const node = new AstFiniteAutomaton({ name, body })
-    return set_location(node, name, body)
+    return set_location(node, keyword ?? name, body)
 }
 
 export function parse_char_condition(stream: TokenStream): AstIdentifier | AstChar {
@@ -749,4 +875,17 @@ export function parse_turing_chars(stream: TokenStream): AstTuringCharList {
             return set_location(new AstTuringCharList({ values: [char] }), char)
         },
     )
+}
+
+export function parse_primary_expression(stream: TokenStream) {
+    const parens = stream.get("opening_parens")
+
+    if (parens) {
+        const expression = delegate("expression", stream)
+        const closing_parens = stream.expect("closing_parens")
+
+        return set_location(expression, parens, closing_parens)
+    }
+
+    return delegate("identifier", stream)
 }

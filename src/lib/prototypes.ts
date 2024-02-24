@@ -23,9 +23,13 @@ import {
     AstPrint,
     AstString,
     AstTest,
+    AstExpression,
+    AstUnary,
+    AstBinary,
+    AstAutomatonAssignment,
 } from "./ast"
 import { FiniteAutomaton, Tape, TuringMachine } from "./automaton"
-import { Binding, Scope, LangObject } from "./evaluator"
+import { Binding, Scope, LangObject, FiniteObject, TuringObject } from "./evaluator"
 import { SourceLocation, Token } from "./tokenstream"
 
 export const prototypes: any = {
@@ -35,6 +39,8 @@ export const prototypes: any = {
     Binding,
     Scope,
     LangObject,
+    FiniteObject,
+    TuringObject,
     SourceLocation,
     Token,
     AstNode,
@@ -51,6 +57,7 @@ export const prototypes: any = {
     AstRoot,
     AstModuleRoot,
     AstFiniteAutomaton,
+    AstAutomatonAssignment,
     AstTapeList,
     AstTuringMachine,
     AstStartLocationChar,
@@ -61,6 +68,9 @@ export const prototypes: any = {
     AstTuringNamedChar,
     AstTuringCharList,
     AstTuringTransition,
+    AstExpression,
+    AstUnary,
+    AstBinary,
     Object,
     Array,
     Set,
@@ -71,7 +81,10 @@ export function store_prototypes(obj: any) {
     if (typeof obj !== "object" || !obj) return obj
 
     const proto = Object.getPrototypeOf(obj)
-    const name = proto?.constructor?.name
+    let name: string = proto?.constructor?.name
+
+    if (name.startsWith("_")) name = name.slice(1, )
+
     if (Object.keys(prototypes).includes(name) && !obj.__prototype__) {
         try {
             obj.__prototype__ = name
