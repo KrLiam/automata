@@ -1,9 +1,16 @@
 <template>
-    <div class="container">
+    <div
+        class="container"
+        ref="container"
+        tabindex="1"
+        @keydown="container_keydown"
+        @focusin="focused = true"
+        @focusout="focused = false"
+    >
         <div class="top">
             <button class="close green" @click="close">X</button>
             <div class="control">
-                <button @click="step">Step</button>
+                <button @click="step">Step <span v-if="focused" class="shortcut_label">(Space)</span></button>
             </div>
         </div>
         <div class="configurations-wrapper">
@@ -78,6 +85,7 @@ export default defineComponent({
     data: () => ({
         instances: [] as Instance[],
         overflow_left: [] as boolean[],
+        focused: false,
     }),
     mounted() {
         this.start()
@@ -107,12 +115,24 @@ export default defineComponent({
             }
         },
 
+        container_keydown(ev: KeyboardEvent) {
+            if (ev.key === " ") {
+                this.step()
+                return
+            }
+        },
+
         close() {
             this.$emit("close")
         },
 
         start() {
             if (!this.automaton || this.input === null) return
+
+            const container = this.$refs.container as HTMLDivElement | undefined
+            if (container) {
+                container.focus()
+            }
 
             while (this.instances.length) this.instances.pop()
 
@@ -201,6 +221,9 @@ export default defineComponent({
 
     color: var(--white);
     background: var(--background-13);
+}
+.container:focus {
+    outline: none;
 }
 .container > * {
     flex-shrink: 0;
@@ -310,5 +333,10 @@ button.close {
 }
 .tape > span:first-child {
     margin-left: 0.2rem;
+}
+
+.shortcut_label {
+    font-size: 0.75em;
+    color: var(--detail-green);
 }
 </style>
