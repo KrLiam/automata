@@ -10,7 +10,12 @@
         <div class="top">
             <button class="close green" @click="close">X</button>
             <div class="control">
-                <button @click="step">Step <span v-if="focused" class="shortcut_label">(Space)</span></button>
+                <button @click="reject" @keyup="ignore_event"> <!-- keyup triggers button submit -->
+                    Reject <span v-if="focused" class="shortcut_label">(Delete)</span>
+                </button>
+                <button @click="step" @keyup="ignore_event">
+                    Step <span v-if="focused" class="shortcut_label">(Space)</span>
+                </button>
             </div>
         </div>
         <div class="configurations-wrapper">
@@ -120,6 +125,14 @@ export default defineComponent({
                 this.step()
                 return
             }
+
+            if (ev.key === "Delete") {
+                this.reject()
+                return
+            }
+        },
+        ignore_event(ev: Event) {
+            ev.preventDefault()
         },
 
         close() {
@@ -146,6 +159,22 @@ export default defineComponent({
             })
 
             console.log("started", [...this.instances])
+            this.$emit("updated-state", [...this.instances])
+        },
+
+        updated() {
+            if (!this.instances.length) {
+                this.$emit("updated-state", [])
+                this.close()
+                return 
+            }
+
+            let instance = this.selected_instance
+            if (!instance) {
+                instance = this.instances[0]
+                instance.selected = true
+            }
+
             this.$emit("updated-state", [...this.instances])
         },
 
@@ -180,20 +209,11 @@ export default defineComponent({
                 this.instances.splice(i, 1, next)
                 this.instances.push(...remaining)
             }
+            
+            this.updated()
 
-            if (!this.instances.length) {
-                this.$emit("updated-state", [])
-                this.close()
-                return
-            }
-
-            let instance = this.selected_instance
-            if (!instance) {
-                instance = this.instances[0]
-                instance.selected = true
-            }
-
-            this.$emit("updated-state", [...this.instances])
+            const instance = this.selected_instance
+            if (!instance) return
 
             // the tape transition does not work properly when the tape is extended
             // to the left. this manually detects this edge case and switches the
@@ -207,6 +227,23 @@ export default defineComponent({
                     this.overflow_left.push(overflowed ? true : false)
                 }
             }
+        },
+
+        reject() {
+            for (let i = this.instances.length - 1; i >= 0; i--) {
+                const instance = this.instances[i]
+
+                if (!instance.selected) continue
+
+                if (instance.accepted !== null) {
+                    this.instances.splice(i, 1)
+                    continue
+                }
+
+                instance.accepted = false
+            }
+
+            this.updated()
         },
     },
 })
