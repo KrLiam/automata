@@ -32,7 +32,7 @@ import { FiniteAutomaton, Tape, TuringMachine } from "./automaton"
 import { Binding, Scope, LangObject, FiniteObject, TuringObject } from "./evaluator"
 import { SourceLocation, Token } from "./tokenstream"
 
-export const prototypes: any = {
+export const prototypes: any[] = [
     FiniteAutomaton,
     Tape,
     TuringMachine,
@@ -75,19 +75,19 @@ export const prototypes: any = {
     Array,
     Set,
     Map,
-}
+]
+
+export const prototype_to_id = new Map(prototypes.map((v, i) => [v, i]))
 
 export function store_prototypes(obj: any) {
     if (typeof obj !== "object" || !obj) return obj
 
-    const proto = Object.getPrototypeOf(obj)
-    let name: string = proto?.constructor?.name
+    const proto = Object.getPrototypeOf(obj).constructor
+    const id = prototype_to_id.get(proto)
 
-    if (name.startsWith("_")) name = name.slice(1, )
-
-    if (Object.keys(prototypes).includes(name) && !obj.__prototype__) {
+    if (id !== undefined && obj.__prototype__ === undefined) {
         try {
-            obj.__prototype__ = name
+            obj.__prototype__ = id
 
             for (const key of Object.keys(obj)) {
                 store_prototypes(obj[key])
@@ -101,11 +101,11 @@ export function store_prototypes(obj: any) {
 export function recover_prototypes(obj: any) {
     if (!obj) return obj
 
-    const proto_name = obj.__prototype__ as string | undefined
-    if (proto_name === undefined) return obj
+    const id = obj.__prototype__ as string | undefined
+    if (id === undefined) return obj
     delete obj.__prototype__
 
-    const proto = prototypes[proto_name]
+    const proto = prototypes[parseInt(id)]
     if (proto === undefined) return obj
 
     Object.setPrototypeOf(obj, proto.prototype)

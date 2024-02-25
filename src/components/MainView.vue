@@ -191,7 +191,7 @@ export default defineComponent({
 
             
             const obj = binding.unwrap()
-            console.log("obj", obj, obj.constructor.name)
+
             if (!(obj instanceof LangObject)) return null
 
             return obj
