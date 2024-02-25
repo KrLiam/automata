@@ -6,15 +6,17 @@
                 <button @click="step">Step</button>
             </div>
         </div>
-        <ul class="configurations">
-            <li
-                :class="['configuration', instanceStatus(inst)]"
-                v-for="(inst, i) in instances"
-                :key="i"
-            >
-                {{ inst.conf.state }}
-            </li>
-        </ul>
+        <div class="configurations-wrapper">
+            <ul class="configurations">
+                <li
+                    :class="['configuration', instanceStatus(inst)]"
+                    v-for="(inst, i) in instances"
+                    :key="i"
+                >
+                    {{ inst.conf.state }}
+                </li>
+            </ul>
+        </div>
         <ul class="tapes">
             <li
                 v-for="(tape, i) in tapes"
@@ -210,17 +212,24 @@ export default defineComponent({
     justify-content: space-between;
     margin-bottom: 1rem;
 }
+.configurations-wrapper {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+}
 .configurations {
     display: flex;
     flex-direction: row;
-    justify-content: center;
+    justify-content: start;
     gap: 0.75rem;
     overflow: scroll;
+    padding-bottom: 0.5rem;
     margin-bottom: 1rem;
 }
 .configuration {
+    flex-shrink: 0;
     display: block;
-    width: 6rem;
+    min-width: 6rem;
     height: 5rem;
     padding: 0.25rem;
 
