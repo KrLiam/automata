@@ -377,13 +377,20 @@ export abstract class StateMachine<R extends TransitionSymbol, A extends any[]> 
         return closure
     }
 
-    has_transition(origin: State, destination: State): boolean {
-        const transitions = this.transition(origin)
-        if (!transitions) return false
-        for (const end_values of Object.values(transitions)) {
+    has_transition(origin: State, destination: State, symbol: R | null = null): boolean {
+        const symbol_map = this.transition(origin)
+
+        if (!symbol_map) return false
+
+        for (let [key, end_values] of Object.entries(symbol_map)) {
+            const pattern = this.decode_key(key)
+
+            if (symbol !== null && pattern !== symbol) continue
+
             const end_states = end_values.map(([state]) => state)
             if (end_states.includes(destination)) return true
         }
+
         return false
     }
 
@@ -697,15 +704,37 @@ export class FiniteAutomaton extends StateMachine<string, []> {
     }
 
     complement() {
-        const final = new Set(this.states)
-        for (const state of this.final_states) {
-            final.delete(state)
+        // create a rejection state
+        const { r } = make_state_conversion_map(this.states, ["r"])
+
+        const new_transitions: Transition<string, []>[] = []
+        for (const origin of this.states) {
+            for (const symbol of this.alphabet) {
+                const trans = this.transition(origin, symbol)
+                if (!trans.length) new_transitions.push([origin, symbol, r])
+            }
         }
+
+        const states = [...this.states]
+        const final_states = [
+            ...Array.from(this.states).filter(state => !this.final_states.has(state))
+        ]
+
+        // only add the rejection state if necessary
+        if (new_transitions.length) {
+            states.push(r)
+            final_states.push(r)
+
+            for (const symbol of this.alphabet) {
+                new_transitions.push([r, symbol, r])
+            }
+        }
+
         return new FiniteAutomaton(
-            this.transitions(),
+            [...this.transitions(), ...new_transitions],
             this.initial_state,
-            final,
-            this.states,
+            final_states,
+            states,
             this.alphabet,
         )
     }
