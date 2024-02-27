@@ -52,6 +52,7 @@ export const keywords = [
     "intersection",
     "complement",
     "determinize",
+    "reenumerate",
 ]
 
 export enum Patterns {
@@ -66,6 +67,7 @@ export enum Patterns {
     intersection = "intersection\\b",
     complement = "complement\\b",
     determinize = "determinize\\b",
+    reenumerate = "reenumerate\\b",
 
     opening_parens = "\\(",
     closing_parens = "\\)",
@@ -131,7 +133,7 @@ export function get_default_parsers(): { [key: string]: Parser<AstNode> } {
             pattern("intersection"), delegate("expression:unary")
         ),
         "expression:unary": new UnaryParser(
-            [pattern("complement"), pattern("determinize")],
+            [pattern("complement"), pattern("determinize"), pattern("reenumerate")],
             delegate("expression:primary")
         ),
         "expression:primary": new CallParser(parse_primary_expression),

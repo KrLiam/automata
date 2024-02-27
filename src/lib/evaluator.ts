@@ -332,6 +332,21 @@ export class FiniteObject extends LangObject {
         const automaton = this.value.determinize()
         return new FiniteObject(automaton)
     }
+
+    @object_method
+    $reenumerate() {
+        function* gen() {
+            let i = 0
+            
+            while (true) {
+                yield `q${i}`
+                i += 1
+            }
+        }
+
+        const automaton = this.value.reenumerate(gen())
+        return new FiniteObject(automaton)
+    }
 }
 
 export class TuringObject extends LangObject {

@@ -103,12 +103,60 @@ export function join_state_version(name: string, version: number) {
     return name + "." + version.toString()
 }
 
-export function split_state_set(state: State) {
-    return new Set(state.split(","))
+export function split_state_set(state: State): Set<State> {
+    const states: string[] = []
+    let i = 0
+
+    while (state[i]) {
+        const p = state[i]
+
+        if (p === "(") {
+            let paren_level = 1
+            let value = ""
+            i++ // (
+
+            while (state[i]) {
+                if (state[i] === "(") paren_level++
+                if (state[i] === ")") paren_level--
+
+                if (!paren_level) break
+
+                value += state[i]
+                i++
+            }
+            states.push(value)
+
+            i++ // )
+            continue
+        }
+
+        if (p === ",") {
+            i++
+            continue
+        }
+
+        let value = ""
+        while (state[i] && state[i] !== ",") {
+            value += state[i]
+            i++
+        }
+        states.push(value)
+    }
+
+    return new Set(states)
 }
 
 export function join_state_set(states: Iterable<State>) {
-    return Array.from(states).sort().join(",")
+    const formatted: string[] = []
+
+    for (let state of states) {
+        if (state.includes(",")) {
+            state = "(" + state + ")"
+        }
+        formatted.push(state)
+    }
+
+    return formatted.sort().join(",")
 }
 
 /**
@@ -715,9 +763,13 @@ export class FiniteAutomaton extends StateMachine<string, []> {
             }
         }
 
+        const epsilon_closure = this.compute_closure(Epsilon)
+
         const states = [...this.states]
         const final_states = [
-            ...Array.from(this.states).filter(state => !this.final_states.has(state))
+            ...Array.from(this.states).filter(state => (
+                !has_intersection(this.final_states, epsilon_closure[state]))
+            )
         ]
 
         // only add the rejection state if necessary
@@ -739,29 +791,58 @@ export class FiniteAutomaton extends StateMachine<string, []> {
         )
     }
 
-    intersection(automaton: FiniteAutomaton) {
-        const result = this.union(automaton).determinize()
+    intersection(automaton: FiniteAutomaton) {    
+        const initial_state: [string, string] = [this.initial_state, automaton.initial_state]
+        const alphabet: string[] = Array.from(this.alphabet).filter(symbol => automaton.alphabet.has(symbol))
 
-        const final_states_union = new Set([
-            ...this.final_states,
-            ...automaton.final_states,
-        ])
+        const transitions: FiniteTransition[] = []
+        const states: Set<string> = new Set()
+        const remaining: [string, string][] = [initial_state]
 
-        const final_states: Set<State> = new Set()
-        for (let state of result.states) {
-            const state_set = split_state_set(state)
+        function add_transition(origin: [State, State], symbol: string, dest: [State, State]) {
+            const origin_str = join_state_set(origin)
+            const dest_str = join_state_set(dest)
 
-            if (Array.from(state_set).every((s) => final_states_union.has(s))) {
-                final_states.add(state)
+            transitions.push([origin_str, symbol, dest_str])
+            if (!states.has(dest_str)) remaining.push(dest)
+        }
+        
+        while (remaining.length) {
+            const origin = remaining.pop() as [string, string]
+            const [origin_a, origin_b] = origin
+            
+            states.add(join_state_set([origin_a, origin_b]))
+
+            for (const symbol of alphabet) {
+                for (const [_, __, dest_a] of this.transition(origin_a, symbol, true)) {
+                    for (const [_, __, dest_b] of automaton.transition(origin_b, symbol, true)) {
+                        add_transition(origin, symbol, [dest_a, dest_b])
+                    }
+                }
+            }
+
+            for (const [_, __, dest_a] of this.transition(origin_a, "", true)) {
+                add_transition(origin, "", [dest_a, origin_b])
+            }
+            for (const [_, __, dest_b] of automaton.transition(origin_b, "", true)) {
+                add_transition(origin, "", [origin_a, dest_b])
+            }
+        }
+
+        const final_states: Set<string> = new Set()
+        for (const final_a of this.final_states) {
+            for (const final_b of automaton.final_states) {
+                const state = join_state_set([final_a, final_b])
+                if (states.has(state)) final_states.add(state)
             }
         }
 
         return new FiniteAutomaton(
-            result.transitions(),
-            result.initial_state,
+            transitions,
+            join_state_set(initial_state),
             final_states,
-            result.states,
-            result.alphabet,
+            states,
+            alphabet,
         )
     }
 
