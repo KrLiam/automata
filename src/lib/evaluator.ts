@@ -322,6 +322,14 @@ export class FiniteObject extends LangObject {
     }
 
     @object_method
+    $concatenate(other: any) {
+        if (!(other instanceof FiniteObject)) return NotImplemented
+
+        const automaton = this.value.concatenate(other.value)
+        return new FiniteObject(automaton)
+    }
+
+    @object_method
     $complement() {
         const automaton = this.value.complement()
         return new FiniteObject(automaton)
@@ -330,6 +338,18 @@ export class FiniteObject extends LangObject {
     @object_method
     $determinize() {
         const automaton = this.value.determinize()
+        return new FiniteObject(automaton)
+    }
+
+    @object_method
+    $star() {
+        const automaton = this.value.star()
+        return new FiniteObject(automaton)
+    }
+
+    @object_method
+    $reverse() {
+        const automaton = this.value.reverse()
         return new FiniteObject(automaton)
     }
 

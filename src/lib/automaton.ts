@@ -751,11 +751,42 @@ export class FiniteAutomaton extends StateMachine<string, []> {
         return new FiniteAutomaton(transitions, u, final, states, alphabet)
     }
 
+    concatenate(automaton: FiniteAutomaton) {
+        const state_map = make_state_conversion_map(
+            this.states, automaton.states,
+        )
+        
+        const states = [
+            ...this.states,
+            ...Array.from(automaton.states, (s) => state_map[s])
+        ]
+
+        const automaton_transitions: FiniteTransition[] = Array.from(
+            automaton.transitions(),
+            ([start, symbol, end]) => [state_map[start], symbol, state_map[end]],
+        )
+        const forward_transitions = Array.from(
+            this.final_states,
+            final => [final, Epsilon, state_map[automaton.initial_state]] as FiniteTransition
+        )
+        const transitions: FiniteTransition[] = [
+            ...this.transitions(),
+            ...automaton_transitions,
+            ...forward_transitions
+        ]
+
+        const final = Array.from(automaton.final_states, s => state_map[s])
+        const alphabet = [...this.alphabet, ...automaton.alphabet]
+
+        return new FiniteAutomaton(transitions, this.initial_state, final, states, alphabet)
+
+    }
+
     complement() {
         // create a rejection state
         const { r } = make_state_conversion_map(this.states, ["r"])
 
-        const new_transitions: Transition<string, []>[] = []
+        const new_transitions: FiniteTransition[] = []
         for (const origin of this.states) {
             for (const symbol of this.alphabet) {
                 const trans = this.transition(origin, symbol)
@@ -788,6 +819,56 @@ export class FiniteAutomaton extends StateMachine<string, []> {
             final_states,
             states,
             this.alphabet,
+        )
+    }
+
+    star() {
+        const transitions: FiniteTransition[] = Array.from(
+            this.final_states, origin => [origin, Epsilon, this.initial_state]
+        )
+
+        return new FiniteAutomaton(
+            [...this.transitions(), ... transitions],
+            this.initial_state,
+            this.final_states,
+            this.states,
+            this.alphabet
+        )
+    }
+
+    reverse() {
+        const transitions: FiniteTransition[] = Array.from(
+            this.transitions(),
+            ([origin, symbol, dest]) => [dest, symbol, origin]
+        )
+
+        let initial: State
+        let finals: State[] = [this.initial_state]
+
+        if (this.final_states.size > 1) {
+            const { i } = make_state_conversion_map(this.states, ["i"])
+
+            initial = i
+
+            for (const final of this.final_states) {
+                transitions.push([initial, Epsilon, final])
+            }
+        }
+        else if (this.final_states.size == 1) {
+            initial = Array.from(this.final_states)[0]
+        }
+        else {
+            // no final state
+            initial = this.initial_state
+            finals = []
+        }
+
+        return new FiniteAutomaton(
+            transitions,
+            initial,
+            finals,
+            [...this.states, initial],
+            this.alphabet
         )
     }
 
