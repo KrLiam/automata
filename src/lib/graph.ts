@@ -6,6 +6,8 @@ import {
     type TuringTransition,
     type FiniteTransition,
     type Transition,
+    type PushdownTransition,
+    PushdownAutomaton,
 } from "../lib/automaton"
 
 export function lerp(a: number, b: number, value: number): number {
@@ -542,6 +544,21 @@ export function make_turing_label(transitions: TuringTransition[]): string[] {
     return labels
 }
 
+export function make_pushdown_label(transitions: PushdownTransition[]): string[] {
+    const labels: string[] = []
+
+    for (const transition of transitions) {
+        const [_, [read, ...pop], __, push] = transition
+
+        const pop_label = stringify_char_list(pop)
+        const push_label = stringify_char_list(push)
+
+        labels.push(`${read}; ${pop_label}; ${push_label}`)
+    }
+
+    return labels
+}
+
 export function make_graph(
     obj: StateMachine<any, any> | null = null,
     base_graph: GraphData | null = null,
@@ -554,7 +571,9 @@ export function make_graph(
     if (!obj) return graph
 
     const format_label =
-        obj instanceof FiniteAutomaton ? make_finite_label : make_turing_label
+        obj instanceof TuringMachine ? make_turing_label :
+        obj instanceof PushdownAutomaton ? make_pushdown_label :
+        make_finite_label
 
     const default_arc = {
         arc_pos: 0,

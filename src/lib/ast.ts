@@ -232,6 +232,43 @@ export class AstFiniteAutomaton extends AstNode {
     }
 }
 
+
+export class AstStackList extends AstList<AstIdentifier> {}
+
+export type AstPushdownAutomatonArgs = AstNodeArgs & {
+    target: AstIdentifier
+    stacks: AstStackList
+    body: AstRoot
+}
+export class AstPushdownAutomaton extends AstNode {
+    target: AstIdentifier
+    stacks: AstStackList
+    body: AstRoot
+
+    constructor({ target, stacks, body, ...args }: AstPushdownAutomatonArgs) {
+        super(args)
+        this.target = target
+        this.stacks = stacks
+        this.body = body
+    }
+}
+
+export type AstPushdownTransitionArgs = AstTransitionArgs & {
+    pop: AstTuringCharList
+    push: AstTuringCharList
+}
+export class AstPushdownTransition extends AstTransition {
+    pop: AstTuringCharList
+    push: AstTuringCharList
+
+    constructor({ pop, push, ...args }: AstPushdownTransitionArgs) {
+        super(args)
+        this.pop = pop
+        this.push = push
+    }
+}
+
+
 export class AstTapeList extends AstList<AstIdentifier> {}
 
 export type AstTuringMachineArgs = AstNodeArgs & {

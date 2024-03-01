@@ -35,6 +35,9 @@ import {
     AstExpression,
     AstBinary,
     AstUnary,
+    AstPushdownAutomaton,
+    AstStackList,
+    AstPushdownTransition,
 } from "./ast"
 import { Token, set_location } from "./tokenstream"
 import { ParseError } from "./error"
@@ -46,6 +49,8 @@ export const keywords = [
     "final",
     "turing",
     "tapes",
+    "pushdown",
+    "stacks",
     "print",
     "test",
     "union",
@@ -64,6 +69,8 @@ export enum Patterns {
     final = "final\\b",
     turing = "turing\\b",
     tapes = "tapes\\b",
+    pushdown = "pushdown\\b",
+    stacks = "stacks\\b",
     print = "print\\b",
     test = "test\\b",
     union = "union\\b",
@@ -121,6 +128,7 @@ export function get_default_parsers(): { [key: string]: Parser<AstNode> } {
             option(pattern("final"), new CallParser(parse_final_states), true),
             option(pattern("finite"), delegate("finite")),
             option(pattern("turing"), delegate("turing"), true),
+            option(pattern("pushdown"), delegate("pushdown")),
             option(pattern("print"), delegate("print")),
             option(pattern("test"), delegate("test")),
             option(pattern("identifier"), delegate("transition")),
@@ -130,6 +138,21 @@ export function get_default_parsers(): { [key: string]: Parser<AstNode> } {
 
         "finite": new CallParser(parse_finite_automaton),
         transition: new CallParser(parse_finite_transition),
+
+        "pushdown": new CallParser(parse_pushdown_automaton),
+        "pushdown:root": new RootParser(
+            delegate("pushdown:statement"),
+            pattern("opening_bracket"),
+            pattern("closing_bracket"),
+        ),
+        "pushdown:statement": new ChooseParser(
+            option(pattern("initial"), new CallParser(parse_initial_state), true),
+            option(pattern("final"), new CallParser(parse_final_states), true),
+            option(pattern("finite"), delegate("finite")),
+            option(pattern("pushdown"), delegate("pushdown")),
+            option(pattern("identifier"), delegate("pushdown:transition")),
+        ),
+        "pushdown:transition": new CallParser(parse_pushdown_transition),
 
         "expression": delegate("expression:union"),
         "expression:union": new BinaryParser(
@@ -178,6 +201,7 @@ export function get_default_parsers(): { [key: string]: Parser<AstNode> } {
             option(pattern("initial"), new CallParser(parse_initial_state), true),
             option(pattern("final"), new CallParser(parse_final_states), true),
             option(pattern("finite"), delegate("finite")),
+            option(pattern("pushdown"), delegate("pushdown")),
             option(pattern("turing"), delegate("turing"), true),
             option(pattern("identifier"), delegate("turing:transition")),
         ),
@@ -788,6 +812,47 @@ export function parse_char_condition(stream: TokenStream): AstIdentifier | AstCh
 
     return node
 }
+
+export function parse_pushdown_automaton(stream: TokenStream) {
+    const keyword = stream.get("pushdown")
+    const target = delegate("identifier", stream) as AstIdentifier
+
+    let stacks: AstStackList
+    if (stream.get("stacks")) {
+        stacks = delegate("turing:tapes", stream) as AstStackList
+    }
+    else {
+        stacks = new AstStackList({values: [new AstIdentifier({value: "S"})]})
+    }
+    
+    const body = delegate("pushdown:root", stream) as AstRoot
+
+    const node = new AstPushdownAutomaton({ target, stacks, body })
+    return set_location(node, keyword ?? target, body)
+}
+
+export function parse_pushdown_transition(stream: TokenStream) {
+    stream = stream.syntax({ arrow: "->" })
+
+    const start = delegate("state", stream) as AstIdentifier
+
+    stream.intercept(["whitespace"]).expect("whitespace")
+
+    const condition = delegate("turing:char", stream) as AstTuringCharList
+    const pop = delegate("turing:chars", stream) as AstTuringCharList
+
+    stream.expect("arrow")
+
+    const end = delegate("state", stream) as AstIdentifier
+    const push = delegate("turing:chars", stream) as AstTuringCharList
+
+    return set_location(
+        new AstPushdownTransition({ start, condition,  pop, end, push }),
+        start,
+        push,
+    )
+}
+
 
 export function parse_turing_machine(stream: TokenStream) {
     const target = delegate("identifier", stream) as AstIdentifier

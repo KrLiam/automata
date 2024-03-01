@@ -9,6 +9,8 @@ import {
     AstList,
     AstNode,
     AstPrint,
+    AstPushdownAutomaton,
+    AstPushdownTransition,
     AstRoot,
     AstTest,
     AstTransition,
@@ -28,6 +30,8 @@ import {
     type TuringTransition,
     type TuringShiftChar,
     StateMachine,
+    PushdownAutomaton,
+    type PushdownTransition,
 } from "./automaton"
 import { SourceLocation, set_location } from "./tokenstream"
 import { Visitor, rule, type Class } from "./visitor"
@@ -378,10 +382,22 @@ export class TuringObject extends LangObject {
     }
 }
 
+
+export class PushdownObject extends LangObject {
+    static type_name: string = "pushdown automaton"
+    declare value: PushdownAutomaton
+
+    constructor(value: PushdownAutomaton, scope: Scope | null = null) {
+        super(value, scope)
+    }
+}
+
+
 export const object_types: {[name: string]: typeof LangObject} = {
     object: LangObject,
     finite: FiniteObject,
     turing: TuringObject,
+    pushdown: PushdownObject,
 }
 
 export class Evaluator extends Visitor<AstNode, Scope, any> {
@@ -559,6 +575,74 @@ export class Evaluator extends Visitor<AstNode, Scope, any> {
             )
     }
 
+    @rule(AstPushdownAutomaton)
+    pushdown_automaton(node: AstPushdownAutomaton, scope: Scope) {
+        const name = node.target.value
+        const stacks = node.stacks.values.map((node) => node.value)
+        const tapes = ["Input", ...stacks]
+
+        const binding = scope.declare(name)
+
+        const child_scope = new Scope(scope)
+        child_scope.declare("$tapes", tapes)
+        const initial = child_scope.declare("$initial")
+        const final = child_scope.declare("$final", [])
+        const transitions = child_scope.declare("$transitions", [])
+
+        this.invoke(node.body, child_scope)
+
+        if (!initial.defined)
+            throw set_location(
+                new EvaluationError(
+                    `Pushdown Automaton '${name}' is missing initial state.`,
+                ),
+                node.target,
+            )
+
+        const automaton = new PushdownAutomaton(
+            transitions.unwrap(), initial.unwrap(), final.unwrap(), tapes, [], [], true
+        )
+        const obj = new PushdownObject(automaton, child_scope)
+
+        try {
+            binding.define(obj)
+        } catch (err) {
+            if (err instanceof RedefinitionError)
+                throw set_location(err, node.target)
+            else throw err
+        }
+    }
+
+    @rule(AstPushdownTransition)
+    pushdown_transition(node: AstPushdownTransition, scope: Scope) {
+        const binding = scope.declare("$transitions")
+        if (!binding.defined) binding.define([])
+        const transitions = binding.unwrap() as PushdownTransition[]
+
+        if (!scope.is_defined("$tapes"))
+            throw set_location(
+                new EvaluationError(
+                    "Invalid pushdown transition outside of pushdown automaton block (missing tape list reference).",
+                ),
+                node,
+            )
+        const tapes = scope.value("$tapes") as string[]
+
+        if (!(node.condition instanceof AstChar)) {
+            throw set_location(
+                new EvaluationError(
+                    `Invalid pushdown automaton condition.`,
+                ),
+                node.condition,
+            )
+        }
+
+        const read = [node.condition.value, ...this.turing_list(node.pop, tapes.slice(1))]
+        const push = this.turing_list(node.push, tapes.slice(1))
+
+        transitions.push([node.start.value, read, node.end.value, push])
+    }
+
     @rule(AstTuringMachine)
     turing_machine(node: AstTuringMachine, scope: Scope) {
         const name = node.target.value
@@ -606,7 +690,9 @@ export class Evaluator extends Visitor<AstNode, Scope, any> {
         )
     }
 
-    turing_list(node: AstList<AstNode>, tapes: string[], output: string[]) {
+    turing_list(node: AstList<AstNode>, tapes: string[], output: string[] | null = null): string[] {
+        if (output === null) output = tapes.map(() => "")
+
         let i = 0
         let positional = true
 
@@ -645,6 +731,8 @@ export class Evaluator extends Visitor<AstNode, Scope, any> {
                 i++
             }
         }
+
+        return output
     }
 
     @rule(AstTuringTransition)

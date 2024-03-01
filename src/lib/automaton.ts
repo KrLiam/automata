@@ -254,6 +254,13 @@ export class Tape {
         this.value = this.value + Blank.repeat(amount)
     }
 
+    shrink_left(amount: number = 1) {
+        this.value = this.value.slice(0, this.value.length - amount)
+        if (!this.value.length) this.value = " "
+
+        this.pos = Math.min(this.pos, this.value.length - 1)
+    }
+
     read(size: number = 1): string {
         if (!this.value.length) return Blank
 
@@ -261,8 +268,10 @@ export class Tape {
     }
 
     write(char: string) {
-        this.value =
-            this.value.slice(0, this.pos) + char + this.value.slice(this.pos + 1)
+        if (0 <= this.pos && this.pos < this.value.length) {
+            this.value =
+                this.value.slice(0, this.pos) + char + this.value.slice(this.pos + 1)
+        }
     }
 }
 
@@ -1018,6 +1027,70 @@ export function format_transition_table(automaton: FiniteAutomaton) {
 
     return lines.join("\n")
 }
+
+
+export type PushdownTransition = Transition<string[], [string[]]>
+export type PushdownTransitionMapValue = TransitionMapValue<[string[]]>
+
+export class PushdownAutomaton extends StateMachine<string[], [string[]]> {
+    to_pattern(value: TransitionSymbol): string[] {
+        if (value instanceof Array) return value
+        return this.tapes.map(() => value)
+    }
+
+    apply_transition(transition: PushdownTransition, tapes: Tape[]): void {
+        const [_, [read, ...pop_chars], ___, push_chars] = transition
+        const [input, ...stacks] = tapes
+
+        if (read) input.shift_right()
+
+        for (let i = 0; i < stacks.length; i++) {
+            const stack = stacks[i]
+            const pop_char = pop_chars[i]
+            const push_char = push_chars[i]
+
+            if (pop_char) {
+                stack.shrink_left()
+            }
+            if (push_char) {
+                if (stack.read() !== Blank) {
+                    stack.extend_right(1)
+                    stack.shift_right()
+                }
+                stack.write(push_char)
+            }
+        }
+    }
+
+    is_acceptable(state: string, tapes: TapeState[]): boolean {
+        if (!this.final_states.has(state)) return false
+
+        const [[input_tape, input_pos], ...stacks] = tapes
+
+        if (input_pos < input_tape.length) return false
+
+        for (const [tape, pos] of stacks) {
+            if (tape[pos] !== Blank) return false
+        }
+
+        return true
+    }
+
+    reenumerate(names: Iterable<string>): PushdownAutomaton {
+        const { transitions, initial, final, states } =
+            this.reenumerated_states(names)
+        return new PushdownAutomaton(
+            transitions,
+            initial,
+            final,
+            this.tapes,
+            states,
+            this.alphabet,
+        )
+    }
+}
+
+
 
 export type TuringShiftChar = ">" | "<" | "-"
 export type TuringTransition = Transition<string[], [string[], TuringShiftChar[]]>

@@ -27,20 +27,25 @@ import {
     AstUnary,
     AstBinary,
     AstAutomatonAssignment,
+    AstPushdownAutomaton,
+    AstPushdownTransition,
+    AstStackList,
 } from "./ast"
-import { FiniteAutomaton, Tape, TuringMachine } from "./automaton"
-import { Binding, Scope, LangObject, FiniteObject, TuringObject } from "./evaluator"
+import { FiniteAutomaton, PushdownAutomaton, Tape, TuringMachine } from "./automaton"
+import { Binding, Scope, LangObject, FiniteObject, TuringObject, PushdownObject } from "./evaluator"
 import { SourceLocation, Token } from "./tokenstream"
 
 export const prototypes: any[] = [
     FiniteAutomaton,
     Tape,
     TuringMachine,
+    PushdownAutomaton,
     Binding,
     Scope,
     LangObject,
     FiniteObject,
     TuringObject,
+    PushdownObject,
     SourceLocation,
     Token,
     AstNode,
@@ -68,6 +73,9 @@ export const prototypes: any[] = [
     AstTuringNamedChar,
     AstTuringCharList,
     AstTuringTransition,
+    AstPushdownAutomaton,
+    AstPushdownTransition,
+    AstStackList,
     AstExpression,
     AstUnary,
     AstBinary,
