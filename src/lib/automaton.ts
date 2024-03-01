@@ -1,3 +1,11 @@
+
+export function* zip<A, B>(a: A[], b: B[]): Generator<[A, B]> {
+    const max_i = Math.min(a.length, b.length)
+    for (let i = 0; i < max_i; i++) {
+        yield [a[i], b[i]]
+    }
+}
+
 export class ComputationError extends Error {}
 
 export function is_iterable(obj: any): obj is Iterable<any> {
@@ -355,9 +363,17 @@ export abstract class StateMachine<R extends TransitionSymbol, A extends any[]> 
     encode_key(read: R): string {
         return JSON.stringify(read)
     }
-    decode_key(key: string): R {
-        return JSON.parse(key)
+
+    decode_key(key: string): R
+    decode_key(key: string, array: true): string[]
+    decode_key(key: string, array: boolean = false): R | string[] {
+        const value = JSON.parse(key)
+
+        if (array && typeof value === "string") return [value]
+
+        return value
     }
+
     abstract to_pattern(value: TransitionSymbol): R
 
     transition(state: string): TransitionSymbolMap<A> | undefined
@@ -487,16 +503,33 @@ export abstract class StateMachine<R extends TransitionSymbol, A extends any[]> 
     }
 
     is_deterministic() {
-        for (const [_, symbol, end_values] of this.traverse()) {
-            const states = new Set(end_values.map(([state]) => state))
+        for (const state of this.states) {
+            const transitions = this.transition(state)
+            if (!transitions) continue
 
+            const reads = Object.keys(transitions).map(key => this.decode_key(key, true))
+
+            for (let i = 0; i < reads.length; i++) {
+                for (let j = i + 1; j < reads.length; j++) {
+                    const pairs = Array.from(zip(reads[i], reads[j]))
+
+                    // for each pair of symbol arrays, check if none of the char pairs are exclusive.
+                    // e.g ["a", ""] and ["b", ""] are exclusive because it's not possible to read
+                    // "a" and "b" in the first tape at the same time.
+                    if (!pairs.some(([a, b]) => (a && b && a !== b))) return false
+                }
+            }
+        }
+
+        for (const [_, symbol, end_values] of this.traverse()) {
             if (symbol === Epsilon) {
                 return false
             }
-            if (states.size > 1) {
+            if (end_values.length > 1) {
                 return false
             }
         }
+
         return true
     }
 

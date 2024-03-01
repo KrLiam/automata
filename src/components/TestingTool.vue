@@ -65,14 +65,8 @@ defineEmits<{
 
 <script lang="ts">
 import type { ConfigurationNode, StateMachine, Transition } from "../lib/automaton"
+import { zip } from "../lib/automaton"
 import { defineComponent } from "vue"
-
-export function* zip<A, B>(a: A[], b: B[]): Generator<[A, B]> {
-    const max_i = Math.min(a.length, b.length)
-    for (let i = 0; i < max_i; i++) {
-        yield [a[i], b[i]]
-    }
-}
 
 export interface Instance {
     conf: ConfigurationNode
