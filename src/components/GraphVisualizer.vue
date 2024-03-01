@@ -33,7 +33,7 @@ defineEmits<{
 </script>
 
 <script lang="ts">
-import { type GraphData, type Vector2, Canvas, vec, get_loop_direction, normalize_angle_range, type GraphArc, get_curved_arc, type GraphUnits, type GraphStyle, type NodeStyle, type ArcStyle } from "../lib/graph"
+import { type GraphData, type Vector2, Canvas, vec, get_loop_direction, normalize_angle_range, type GraphArc, get_curved_arc, type GraphUnits, type GraphStyle, type NodeStyle, type ArcStyle, TextAlign } from "../lib/graph"
 import { defineComponent, defineProps, withDefaults } from "vue"
 
 export interface Visualizer {
@@ -93,6 +93,9 @@ export default defineComponent({
             arc_arrow_height: 15,
             arc_loop_radius: 20,
             arc_slider_radius: 5,
+            arc_label_size: 16,
+            arc_label_spacing: 15,
+            arc_label_gap: 5,
         } as GraphUnits,
 
         peak_value: 0
@@ -187,33 +190,34 @@ export default defineComponent({
                 )
                 const text_pos = vec.sum(
                     slider_pos,
-                    vec.prod(direction, 15)
+                    vec.prod(direction, this.units.arc_label_spacing)
                 )
                 return {slider_pos, text_pos}
             }
 
             if (arc_pos !== 0) {
-                const direction = vec.diff(dest_pos, origin_pos)
+                const direction = vec.normalized(vec.diff(dest_pos, origin_pos))
                 const mean1 = vec.quot(vec.sum(origin_pos, dest_pos), 2)
 
-                const perpendicular = vec.normalized(vec.rotated_right(direction))
+                const perpendicular = vec.rotated_right(direction)
                 const slider_pos = vec.sum(
                     mean1, vec.prod(perpendicular, arc_pos)
                 )
                 const text_pos = vec.sum(
-                    slider_pos, vec.prod(perpendicular, 15)
+                    slider_pos,
+                    vec.prod(
+                        arc_pos >= 0 ? perpendicular : vec.negated(perpendicular),
+                        this.units.arc_label_spacing
+                    )
                 )
                 return {slider_pos, text_pos}
             }
 
             const direction = vec.normalized(vec.diff(origin_pos, dest_pos))
-            const rotated = vec.rotated_right(vec.prod(direction, 20))
+            const rotated = vec.rotated_right(vec.prod(direction, this.units.arc_label_spacing))
             
             const slider_pos = vec.lerp(origin_pos, dest_pos, label_pos)
-            const text_pos = vec.sum(
-                slider_pos,
-                label_ontop ? vec.faced_up(rotated) : vec.faced_down(rotated)
-            )
+            const text_pos = vec.sum(slider_pos, rotated)
             return {slider_pos, text_pos}
         },
         draw() {
@@ -343,7 +347,7 @@ export default defineComponent({
                         pos,
                         text: name,
                         size: 15,
-                        align: true,
+                        align: TextAlign.center,
                         color: "#ffffff",
                         background: {
                             color: "#000000",
@@ -356,7 +360,7 @@ export default defineComponent({
                         pos: [x, y],
                         text: name,
                         size: 20,
-                        align: true,
+                        align: TextAlign.center,
                         color: "#000000",
                     })
                 }
@@ -367,36 +371,36 @@ export default defineComponent({
             // labels
             for (const [key, arc] of Object.entries(this.value.arcs)) {
                 const {slider_pos, text_pos} = this.get_label_pos(arc)
+                
+                const direction = vec.normalized(vec.negated_y(vec.diff(text_pos, slider_pos)))
+
+                const align = (
+                    Math.abs(direction[1]) >= Math.sin(5*Math.PI/12) ? TextAlign.center :
+                    direction[0] < 0 ? TextAlign.right :
+                    TextAlign.left
+                )
 
                 const arc_style: ArcStyle | undefined = this.style.arcs[key]
                 const color = arc_style?.color ?? "#ffffff"
                 
                 this.canvas.disk({pos: slider_pos, color, radius: this.units.arc_slider_radius})
 
+                const label_down = direction[1] < 0
+
                 let offset = 0
                 for (const label of arc.labels) {
                     const {height} = this.canvas.text({
-                        pos: vec.sum(text_pos, [0, arc.label_ontop ? -offset : offset]),
+                        pos: vec.sum(text_pos, [0, label_down ? offset : -offset]),
                         text: label,
                         color: "#ffffff",
-                        size: 20,
-                        align: true,
+                        size: this.units.arc_label_size,
+                        align,
                         background: {alpha: 0.3, color: "#000000"}
                     })
-                    offset += height + 5
+                    offset += height + this.units.arc_label_gap
                 }
 
                 this.arcSliders.push({arc: key, pos: slider_pos})
-            }
-
-
-            if (this.drag.data.direction) {
-                const [pos1, pos2]: [Vector2, Vector2] = this.drag.data.direction
-                const mouse: Vector2 = this.drag.data.mouse
-                const proj: Vector2 = this.drag.data.proj
-                // this.canvas.line({pos1, pos2, width:5, color:"#ff0000"})
-                // this.canvas.line({pos1, pos2: mouse, width:5, color:"#00ff00"})
-                // this.canvas.line({pos1, pos2: proj, width:5, color:"#0000ff"})
             }
         },
 

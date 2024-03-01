@@ -185,6 +185,14 @@ export interface CanvasConfig {
     fontFamily: string
     fontSize: number
 }
+
+
+export enum TextAlign {
+    left = 0.0,
+    center = 0.5,
+    right = 1.0
+}
+
 export class Canvas {
     cfg: CanvasConfig
     el: HTMLCanvasElement
@@ -398,7 +406,7 @@ export class Canvas {
         text,
         size,
         color,
-        align = false,
+        align = TextAlign.left,
         family = "",
         alpha = 1.0,
         background = { alpha: 1.0 },
@@ -407,7 +415,7 @@ export class Canvas {
         text: string
         size: number
         color: string
-        align?: boolean
+        align?: TextAlign
         family?: string
         alpha?: number
         background?: { color?: string; alpha?: number; padding?: Vector2 }
@@ -418,9 +426,9 @@ export class Canvas {
 
         const m = this.measureText({ text, size })
 
-        if (align) {
-            pos = [pos[0] - m.width / 2, pos[1] - (m.descent - m.ascent) / 2]
-        }
+        const y_offset = (m.ascent - m.descent) / 2
+        pos = vec.sum(pos, [-m.width * align, y_offset])
+
         if (background.color) {
             const padding = background.padding ?? [0, 0]
             const bg_pos: Vector2 = [
@@ -496,6 +504,9 @@ export interface GraphUnits {
     arc_arrow_height: number
     arc_loop_radius: number
     arc_slider_radius: number
+    arc_label_size: number
+    arc_label_spacing: number
+    arc_label_gap: number
 }
 
 export const formatted_chars: { [ch: string]: string } = {
@@ -525,7 +536,7 @@ export function make_turing_label(transitions: TuringTransition[]): string[] {
         const write_label = stringify_char_list(write)
         const shift_label = shift.join(",")
 
-        labels.push(`${read_label} ; ${write_label} ; ${shift_label}`)
+        labels.push(`${read_label}; ${write_label}; ${shift_label}`)
     }
 
     return labels
