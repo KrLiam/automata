@@ -301,7 +301,7 @@ export function object_method(
 }
 
 export class FiniteObject extends LangObject {
-    static type_name: string = "finite automaton"
+    static type_name: string = "Finite Automaton"
 
     declare value: FiniteAutomaton
 
@@ -374,7 +374,7 @@ export class FiniteObject extends LangObject {
 }
 
 export class TuringObject extends LangObject {
-    static type_name: string = "turing machine"
+    static type_name: string = "Turing Machine"
     declare value: TuringMachine
 
     constructor(value: TuringMachine, scope: Scope | null = null) {
@@ -384,7 +384,7 @@ export class TuringObject extends LangObject {
 
 
 export class PushdownObject extends LangObject {
-    static type_name: string = "pushdown automaton"
+    static type_name: string = "Pushdown Automaton"
     declare value: PushdownAutomaton
 
     constructor(value: PushdownAutomaton, scope: Scope | null = null) {

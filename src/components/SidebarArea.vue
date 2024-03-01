@@ -58,7 +58,7 @@ defineEmits<{
 <script lang="ts">
 import { defineComponent, defineProps } from "vue"
 import SelectMenu, { type SelectElement, type SelectEvent } from "./SelectMenu.vue"
-import { LangObject, type Scope } from "../lib/evaluator"
+import { LangObject, type_name, type Scope } from "../lib/evaluator"
 import { FiniteAutomaton, StateMachine, TuringMachine } from "@/lib/automaton"
 
 export default defineComponent({
@@ -86,14 +86,8 @@ export default defineComponent({
                 ? "Deterministic"
                 : "Non-Deterministic"
 
-            if (value instanceof FiniteAutomaton) {
-                return `${det_trait} Finite Automaton`
-            }
-            if (value instanceof TuringMachine) {
-                return `${det_trait} Turing Machine`
-            }
+            return `${det_trait} ${type_name(obj)}`
 
-            return ""
         },
         selectedName(): string {
             if (!this.selected_path.length) return ""
