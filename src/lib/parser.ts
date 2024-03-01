@@ -791,8 +791,15 @@ export function parse_char_condition(stream: TokenStream): AstIdentifier | AstCh
 
 export function parse_turing_machine(stream: TokenStream) {
     const target = delegate("identifier", stream) as AstIdentifier
-    stream.expect("tapes")
-    const tapes = delegate("turing:tapes", stream) as AstList<AstIdentifier>
+
+    let tapes: AstList<AstIdentifier>
+    if (stream.get("tapes")) {
+        tapes = delegate("turing:tapes", stream) as AstList<AstIdentifier>
+    }
+    else {
+        tapes = new AstList({values: [new AstIdentifier({value: "I"})]})
+    }
+
     const body = delegate("turing:root", stream) as AstRoot
 
     const node = new AstTuringMachine({ target, tapes, body })
