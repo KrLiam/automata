@@ -216,8 +216,14 @@ export default defineComponent({
             const conf = prev_instance?.conf
             if (conf) {
                 const next_conf = instance.conf
-                for (const [a, b] of zip(conf.tapes, next_conf.tapes)) {
-                    const overflowed = a[0].length < b[0].length && b[1] === 0
+                for (const [prev, curr] of zip(conf.tapes, next_conf.tapes)) {
+                    const [prev_tape, _] = prev
+                    const [curr_tape, curr_pos] = curr
+                    
+                    const overflowed =
+                        prev_tape.length < curr_tape.length // tape size increased,
+                        && prev_tape.length                 // previous tape was not empty
+                        && curr_pos === 0                   // at the beginning of the current tape
                     this.overflow_left.push(overflowed ? true : false)
                 }
             }

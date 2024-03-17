@@ -220,6 +220,10 @@ export class Tape {
         this.bounded = bounded
     }
 
+    is_off_bound(): boolean {
+        return this.pos < 0 || this.pos >= this.value.length
+    }
+
     copy() {
         return new Tape(this.value, this.pos, this.bounded)
     }
@@ -256,7 +260,6 @@ export class Tape {
 
     shrink_left(amount: number = 1) {
         this.value = this.value.slice(0, this.value.length - amount)
-        if (!this.value.length) this.value = " "
 
         this.pos = Math.min(this.pos, this.value.length - 1)
     }
@@ -268,10 +271,9 @@ export class Tape {
     }
 
     write(char: string) {
-        if (0 <= this.pos && this.pos < this.value.length) {
-            this.value =
-                this.value.slice(0, this.pos) + char + this.value.slice(this.pos + 1)
-        }
+        if (this.bounded && this.is_off_bound()) return
+
+        this.value = this.value.slice(0, this.pos) + char + this.value.slice(this.pos + 1)
     }
 }
 
@@ -543,8 +545,8 @@ export abstract class StateMachine<R extends TransitionSymbol, A extends any[]> 
     }
 
     initial_configuration(input: string): ConfigurationNode {
-        const input_tape: TapeState = [input.length ? input : " ", 0]
-        const extra_tapes: TapeState[] = this.tapes.slice(1).map(() => [" ", 0])
+        const input_tape: TapeState = [input, 0]
+        const extra_tapes: TapeState[] = this.tapes.slice(1).map(() => ["", 0])
 
         const state = this.initial_state
         const tapes = [input_tape, ...extra_tapes]
@@ -1053,10 +1055,9 @@ export class PushdownAutomaton extends StateMachine<string[], [string[]]> {
                 stack.shrink_left()
             }
             if (push_char) {
-                if (stack.read() !== Blank) {
-                    stack.extend_right(1)
-                    stack.shift_right()
-                }
+                if (stack.read() !== Blank) stack.shift_right()
+                if (stack.is_off_bound()) stack.extend_right(1)
+
                 stack.write(push_char)
             }
         }
@@ -1070,7 +1071,7 @@ export class PushdownAutomaton extends StateMachine<string[], [string[]]> {
         if (input_pos < input_tape.length) return false
 
         for (const [tape, pos] of stacks) {
-            if (tape[pos] !== Blank) return false
+            if (tape[pos] && tape[pos] !== Blank) return false
         }
 
         return true
