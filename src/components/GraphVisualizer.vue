@@ -448,7 +448,7 @@ export default defineComponent({
             if (this.drag.type) {
                 this.autofocus = false
 
-                const delta: Vector2 = vec.diff(render_pos, this.drag.start)
+                const delta: Vector2 = vec.quot(vec.diff(render_pos, this.drag.start), this.canvas.scale_value)
                 const drag_pos = vec.sum(this.drag.base, delta)
                 
                 if (this.drag.type === DragType.Node) {
