@@ -93,11 +93,14 @@ export default defineComponent({
 
         units: {
             node_radius: 20,
-            arc_width: 5,
-            arc_arrow_width: 10,
-            arc_arrow_height: 15,
+            node_ring_radius: 25,
+            node_ring_width: 2.5,
+            arc_width: 3,
+            arc_arrow_width: 6,
+            arc_arrow_height: 10,
             arc_loop_radius: 20,
-            arc_slider_radius: 5,
+            arc_slider_radius: 4,
+            arc_slider_hitbox_radius: 20,
             arc_label_size: 16,
             arc_label_spacing: 15,
             arc_label_gap: 5,
@@ -173,9 +176,10 @@ export default defineComponent({
             this.request_frame()
         },
         get_node_radius(node: string): number {
-            let radius = this.units.node_radius
-            if (this.value.finals.includes(node)) radius += 6.25
-            return radius
+            if (this.value.finals.includes(node)) {
+                return this.units.node_ring_radius + this.units.node_ring_width/2
+            }
+            return this.units.node_radius
         },
         get_label_pos(arc: GraphArc) {
             const { origin, destination, arc_pos, label_ontop, label_pos } = arc
@@ -241,29 +245,33 @@ export default defineComponent({
                 const color = arc_style?.color ?? "#ffffff"
 
                 if (origin === destination) {
-                    const radius = this.units.arc_loop_radius
+                    const arc_radius = this.units.arc_loop_radius
                     const direction = get_loop_direction(arc_pos)
-                    const angle = vec.angle(vec.negated_y(direction))
+                    const direction_angle = vec.angle(vec.negated_y(direction))
 
+                    const center_dist = Math.sqrt(origin_radius**2 + arc_radius**2)
                     const pos = vec.sum(
-                        origin_pos, vec.prod(direction, origin_radius*sin45 + radius*sin45)
+                        origin_pos, vec.prod(direction, center_dist)
                     )
-                    const arrow_direction = vec.prod(
-                        vec.normalized(vec.rotated(direction, Math.PI*0.125)), arrow_height
-                    )
-                    const arrow_width_direction = vec.prod(
-                        vec.normalized(vec.rotated_right(arrow_direction)), arrow_width
-                    )
+
+                    const h = origin_radius*arc_radius / center_dist
+                    const angle = Math.asin(h / origin_radius)
+
+                    const arrow_direction = vec.rotated(direction, angle)
                     const pos1 = vec.sum(
-                        pos, vec.prod(vec.rotated(direction, Math.PI*0.75), radius - this.units.arc_width)
+                        origin_pos, vec.prod(arrow_direction, origin_radius)
                     )
-                    const arrow_end = vec.sum(pos1, arrow_direction)
+                    
+                    const arrow_width_direction = vec.prod(
+                        vec.rotated_right(arrow_direction), arrow_width
+                    )
+                    const arrow_end = vec.sum(pos1, vec.prod(arrow_direction, arrow_height))
                     const pos2 = vec.sum(arrow_end, arrow_width_direction)
                     const pos3 = vec.sum(arrow_end, vec.negated(arrow_width_direction))
 
-                    const arc_range = normalize_angle_range([angle - 0.76*Math.PI, angle + 0.5*Math.PI])
+                    const arc_range = normalize_angle_range([direction_angle - 0.755*Math.PI, direction_angle + 0.6*Math.PI])
                     this.canvas.circle({
-                        pos, radius, width: this.units.arc_width, color, range: arc_range
+                        pos, radius: arc_radius, width: this.units.arc_width, color, range: arc_range
                     })
                     this.canvas.triangle({pos1, pos2, pos3, color})
                     continue
@@ -313,8 +321,9 @@ export default defineComponent({
 
             // initial node
             if (this.value.initial) {
+                const node_radius = this.get_node_radius(this.value.initial)
                 const initial_pos = this.value.nodes[this.value.initial]
-                const initial_triangle = vec.sum(initial_pos, [-this.units.node_radius, 0])
+                const initial_triangle = vec.sum(initial_pos, [-node_radius, 0])
                 this.canvas.triangle({
                     pos1: initial_triangle,
                     pos2: vec.sum(initial_triangle, [-15, 10]),
@@ -341,7 +350,7 @@ export default defineComponent({
                 const radius = this.units.node_radius
                 
                 if (this.value.finals.includes(name)) this.canvas.circle({
-                    pos: [x, y], radius: radius + 6.25, width: 2.5, color
+                    pos: [x, y], radius: this.units.node_ring_radius, width: this.units.node_ring_width, color
                 })
                 this.canvas.disk({ pos: [x, y], radius, color})
    
@@ -580,7 +589,7 @@ export default defineComponent({
                 }
             }
 
-            const slider_threshold = this.units.arc_slider_radius ** 2 * 8
+            const slider_threshold = this.units.arc_slider_hitbox_radius ** 2
             for (const slider of this.arcSliders) {
                 const dist = vec.sqdistance(pos, slider.pos)
                 if (dist <= slider_threshold) {
