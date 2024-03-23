@@ -281,7 +281,7 @@ export class Canvas {
         const path = new Path2D()
         path.arc(
             ...vec.straddle(pos),
-            radius - width / 2,
+            radius,
             -range[0],
             -range[1],
             true,
@@ -501,11 +501,14 @@ export interface GraphStyle {
 
 export interface GraphUnits {
     node_radius: number
+    node_ring_radius: number
+    node_ring_width: number
     arc_width: number
     arc_arrow_width: number
     arc_arrow_height: number
     arc_loop_radius: number
     arc_slider_radius: number
+    arc_slider_hitbox_radius: number
     arc_label_size: number
     arc_label_spacing: number
     arc_label_gap: number
