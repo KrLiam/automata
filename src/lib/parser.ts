@@ -1047,6 +1047,16 @@ export function parse_grammar_alternative(stream: TokenStream) {
 export function parse_grammar_sequence(stream: TokenStream) {    
     return stream.syntax({nonterminal_symbol: "[A-Z]", terminal_symbol: "[a-z]+"}, () => {
         const sequence: SentencialSequence = []
+
+        const {result: string} = stream.checkpoint(commit => {
+            const string = delegate("string", stream) as AstString
+            commit()
+            return string
+        })
+        if (string) {
+            const symbol = new Terminal(string.value)
+            return set_location(new AstGrammarSequence({value: [symbol]}), string)
+        }
         
         const [nonterminal, terminal] = stream.expect_multiple("nonterminal_symbol", "terminal_symbol")
         stream = stream.intercept(["newline"])

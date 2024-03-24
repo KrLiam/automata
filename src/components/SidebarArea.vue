@@ -60,6 +60,7 @@ import { defineComponent, defineProps } from "vue"
 import SelectMenu, { type SelectElement, type SelectEvent } from "./SelectMenu.vue"
 import { LangObject, type_name, type Scope } from "../lib/evaluator"
 import { FiniteAutomaton, StateMachine, TuringMachine } from "@/lib/automaton"
+import { Grammar } from "@/lib/grammar"
 
 export default defineComponent({
     components: {
@@ -88,6 +89,16 @@ export default defineComponent({
                     ? "Deterministic"
                     : "Non-Deterministic"
                 name = det_trait + " " + name
+            }
+
+            if (obj.value instanceof Grammar) {
+                const type = obj.value.get_type()
+                const type_trait =
+                    type === 3 ? "Regular" :
+                    type === 2 ? "Context-free" :
+                    type === 1 ? "Context-sensitive" :
+                    "Irrestricted"
+                name = type_trait + " " + name
             }
 
             return name
