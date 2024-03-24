@@ -30,9 +30,15 @@ import {
     AstPushdownAutomaton,
     AstPushdownTransition,
     AstStackList,
+    AstGrammar,
+    AstGrammarAlternative,
+    AstGrammarExpression,
+    AstGrammarRule,
+    AstGrammarSequence,
 } from "./ast"
 import { FiniteAutomaton, PushdownAutomaton, Tape, TuringMachine } from "./automaton"
-import { Binding, Scope, LangObject, FiniteObject, TuringObject, PushdownObject } from "./evaluator"
+import { Binding, Scope, LangObject, FiniteObject, TuringObject, PushdownObject, GrammarObject } from "./evaluator"
+import { Grammar, NonTerminal, ProductionRule, SentenceSymbol, Terminal } from "./grammar"
 import { SourceLocation, Token } from "./tokenstream"
 
 export const prototypes: any[] = [
@@ -40,12 +46,18 @@ export const prototypes: any[] = [
     Tape,
     TuringMachine,
     PushdownAutomaton,
+    Terminal,
+    NonTerminal,
+    SentenceSymbol,
+    Grammar,
+    ProductionRule,
     Binding,
     Scope,
     LangObject,
     FiniteObject,
     TuringObject,
     PushdownObject,
+    GrammarObject,
     SourceLocation,
     Token,
     AstNode,
@@ -79,6 +91,11 @@ export const prototypes: any[] = [
     AstExpression,
     AstUnary,
     AstBinary,
+    AstGrammar,
+    AstGrammarAlternative,
+    AstGrammarExpression,
+    AstGrammarRule,
+    AstGrammarSequence,
     Object,
     Array,
     Set,

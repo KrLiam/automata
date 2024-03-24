@@ -4,6 +4,10 @@ import {
     AstChar,
     AstFinalState,
     AstFiniteAutomaton,
+    AstGrammar,
+    AstGrammarAlternative,
+    AstGrammarRule,
+    AstGrammarSequence,
     AstIdentifier,
     AstInitialState,
     AstList,
@@ -33,6 +37,7 @@ import {
     PushdownAutomaton,
     type PushdownTransition,
 } from "./automaton"
+import { Grammar, ProductionRule, type SentencialSequence } from "./grammar"
 import { SourceLocation, set_location } from "./tokenstream"
 import { Visitor, rule, type Class } from "./visitor"
 
@@ -393,11 +398,22 @@ export class PushdownObject extends LangObject {
 }
 
 
+export class GrammarObject extends LangObject {
+    static type_name: string = "Grammar"
+    declare value: Grammar
+
+    constructor(value: Grammar, scope: Scope | null = null) {
+        super(value, scope)
+    }
+}
+
+
 export const object_types: {[name: string]: typeof LangObject} = {
     object: LangObject,
     finite: FiniteObject,
     turing: TuringObject,
     pushdown: PushdownObject,
+    grammar: GrammarObject,
 }
 
 export class Evaluator extends Visitor<AstNode, Scope, any> {
@@ -782,6 +798,56 @@ export class Evaluator extends Visitor<AstNode, Scope, any> {
         }
 
         transitions.push([node.start.value, read, node.end.value, write, shift])
+    }
+
+    @rule(AstGrammar)
+    grammar(node: AstGrammar, scope: Scope) {
+        const name = node.target.value
+        const start_symbol = node.start_symbol.value
+        
+        const child_scope = new Scope(scope)
+        const rules = child_scope.declare("$rules", [])
+
+        this.invoke(node.body, child_scope)
+
+        const grammar = new Grammar(rules.unwrap(), start_symbol)
+        const object = new GrammarObject(grammar, child_scope)
+
+        try {
+            scope.declare(name, object)
+        }
+        catch (err) {
+            if (err instanceof RedefinitionError)
+                throw set_location(err, node.target)
+            throw err
+        }
+    }
+
+    @rule(AstGrammarRule)
+    grammar_rule(node: AstGrammarRule, scope: Scope) {
+        if (!scope.is_defined("$rules", false)) scope.declare("$rules", [])
+        const rules = scope.value("$rules") as ProductionRule[]
+        
+        const head = node.head.value
+        const results = this.invoke(node.expression, scope) as SentencialSequence[]
+
+        const rule = new ProductionRule(head, ...results)
+        rules.push(rule)
+    }
+
+    @rule(AstGrammarAlternative)
+    grammar_alternative(node: AstGrammarAlternative, scope: Scope) {
+        const values = []
+
+        for (const value of node.values) {
+            values.push(...this.invoke(value, scope))
+        }
+        return values
+    }
+
+    @rule(AstGrammarSequence)
+    grammar_sequence(node: AstGrammarSequence, scope: Scope) {
+        return [node.value]
     }
 
     @rule(AstPrint)

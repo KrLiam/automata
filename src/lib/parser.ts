@@ -38,10 +38,16 @@ import {
     AstPushdownAutomaton,
     AstStackList,
     AstPushdownTransition,
+    AstGrammar,
+    AstGrammarSequence,
+    AstGrammarExpression,
+    AstGrammarRule,
+    AstGrammarAlternative,
 } from "./ast"
 import { Token, set_location } from "./tokenstream"
 import { ParseError } from "./error"
 import type { TuringShiftChar } from "./automaton"
+import { NonTerminal, Terminal, type SentencialSequence } from "./grammar"
 
 export const keywords = [
     "finite",
@@ -51,6 +57,8 @@ export const keywords = [
     "tapes",
     "pushdown",
     "stacks",
+    "grammar",
+    "start",
     "print",
     "test",
     "union",
@@ -71,6 +79,8 @@ export enum Patterns {
     tapes = "tapes\\b",
     pushdown = "pushdown\\b",
     stacks = "stacks\\b",
+    grammar = "grammar\\b",
+    start = "start\\b",
     print = "print\\b",
     test = "test\\b",
     union = "union\\b",
@@ -93,6 +103,7 @@ export enum Patterns {
     equals = "=",
     comma = ",",
     quote = '"',
+    separation_bar = "\\|",
     singlequote = "'",
     comment = "//.*",
     multiline_comment = "/\\*[\\s\\S]*?\\*/",
@@ -129,6 +140,7 @@ export function get_default_parsers(): { [key: string]: Parser<AstNode> } {
             option(pattern("finite"), delegate("finite")),
             option(pattern("turing"), delegate("turing"), true),
             option(pattern("pushdown"), delegate("pushdown")),
+            option(pattern("grammar"), delegate("grammar")),
             option(pattern("print"), delegate("print")),
             option(pattern("test"), delegate("test")),
             option(pattern("identifier"), delegate("transition")),
@@ -239,6 +251,21 @@ export function get_default_parsers(): { [key: string]: Parser<AstNode> } {
         ]),
         "turing:shift:named_char": new CallParser(parse_turing_named_shift_char),
         "turing:shift:char": new CallParser(parse_turing_shift_char),
+
+        "grammar": new CallParser(parse_grammar),
+        "grammar:root": new RootParser(
+            delegate("grammar:statement"),
+            pattern("opening_bracket"),
+            pattern("closing_bracket")
+        ),
+        "grammar:statement": new ChooseParser(
+            option(pattern("initial"), delegate("initial")),
+            option(pattern("symbol"), delegate("grammar:rule")),
+        ),
+        "grammar:rule": new CallParser(parse_grammar_rule),
+        "grammar:expression": delegate("grammar:alternative"),
+        "grammar:alternative": new CallParser(parse_grammar_alternative),
+        "grammar:sequence": new CallParser(parse_grammar_sequence)
     }
 }
 
@@ -978,4 +1005,67 @@ export function parse_primary_expression(stream: TokenStream) {
     }
 
     return delegate("identifier", stream)
+}
+
+export function parse_grammar(stream: TokenStream) {
+    const keyword = stream.get("grammar")
+    const target = delegate("identifier", stream) as AstIdentifier
+
+    let start_symbol = new AstIdentifier({value: "S"})
+    if (stream.get("start")) {
+        start_symbol = delegate("identifier", stream) as AstIdentifier    
+    }
+
+    const body = delegate("grammar:root", stream) as AstRoot
+
+    return set_location(new AstGrammar({target, start_symbol, body}), keyword ?? target, body)
+}
+
+export function parse_grammar_rule(stream: TokenStream) {
+    stream = stream.syntax({ arrow: "->" })
+
+    const head = delegate("grammar:sequence", stream) as AstGrammarSequence
+    stream.expect("arrow")
+    const expression = delegate("grammar:expression", stream) as AstGrammarExpression
+
+    return set_location(new AstGrammarRule({head, expression}), head, expression)
+}
+
+export function parse_grammar_alternative(stream: TokenStream) {
+    const values: AstGrammarExpression[] = []
+
+    while (true) {
+        const value = delegate("grammar:sequence", stream) as AstGrammarExpression
+        values.push(value)
+
+        if (!stream.get("separation_bar")) break
+    }
+
+    return set_location(new AstGrammarAlternative({values}), values[0], values[values.length - 1])
+}
+
+export function parse_grammar_sequence(stream: TokenStream) {    
+    return stream.syntax({nonterminal_symbol: "[A-Z]", terminal_symbol: "[a-z]+"}, () => {
+        const sequence: SentencialSequence = []
+        
+        const [nonterminal, terminal] = stream.expect_multiple("nonterminal_symbol", "terminal_symbol")
+        stream = stream.intercept(["newline"])
+
+        let start = nonterminal ?? terminal as Token
+        let end = start
+
+        let token: Token | null = start
+        while (token) {
+            const node = token.type === "nonterminal_symbol" ?
+                new NonTerminal(token.value) :
+                new Terminal(token.value)
+
+            sequence.push(node)
+
+            end = token
+            token = stream.get("nonterminal_symbol", "terminal_symbol")
+        }
+
+        return set_location(new AstGrammarSequence({value: sequence}), start, end)
+    })
 }

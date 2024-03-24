@@ -1,3 +1,4 @@
+import type { SentencialSequence } from "./grammar"
 import { SourceLocation } from "./tokenstream"
 
 export type AstNodeArgs = {
@@ -366,6 +367,67 @@ export class AstAutomatonAssignment extends AstNode {
         super(args)
         this.type = type
         this.target = target
+        this.expression = expression
+    }
+}
+
+
+export type AstGrammarArgs = AstNodeArgs & {
+    target: AstIdentifier
+    start_symbol: AstIdentifier
+    body: AstRoot
+}
+export class AstGrammar extends AstNode {
+    target: AstIdentifier
+    start_symbol: AstIdentifier
+    body: AstRoot
+
+    constructor({ target, body, start_symbol, ...args }: AstGrammarArgs) {
+        super(args)
+        this.target = target
+        this.start_symbol = start_symbol
+        this.body = body
+    }
+}
+
+
+export class AstGrammarExpression extends AstNode {}
+
+export type AstGrammarSequenceArgs = AstNodeArgs & {
+    value: SentencialSequence
+}
+export class AstGrammarSequence extends AstGrammarExpression {
+    value: SentencialSequence
+
+    constructor({ value, ...args }: AstGrammarSequenceArgs) {
+        super(args)
+        this.value = value
+    }
+}
+
+export type AstGrammarAlternativeArgs = AstNodeArgs & {
+    values: AstGrammarExpression[]
+}
+export class AstGrammarAlternative extends AstGrammarExpression {
+    values: AstGrammarExpression[]
+
+    constructor({ values, ...args }: AstGrammarAlternativeArgs) {
+        super(args)
+        this.values = values
+    }
+}
+
+export type AstGrammarRuleArgs = AstNodeArgs & {
+    head: AstGrammarSequence
+    expression: AstGrammarExpression
+}
+export class AstGrammarRule extends AstNode {
+    head: AstGrammarSequence
+    expression: AstGrammarExpression
+
+    constructor({ head, expression, ...args }: AstGrammarRuleArgs) {
+        super(args)
+        this.head = head
         this.expression = expression
     }
 }

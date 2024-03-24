@@ -79,15 +79,18 @@ export default defineComponent({
     computed: {
         selectedType(): string {
             const obj = this.selected
-            if (!obj || !(obj.value instanceof StateMachine)) return ""
-            const value = obj.value
+            if (!obj) return ""
 
-            const det_trait = value.is_deterministic()
-                ? "Deterministic"
-                : "Non-Deterministic"
+            let name = type_name(obj)
 
-            return `${det_trait} ${type_name(obj)}`
+            if (obj.value instanceof StateMachine) {
+                const det_trait = obj.value.is_deterministic()
+                    ? "Deterministic"
+                    : "Non-Deterministic"
+                name = det_trait + " " + name
+            }
 
+            return name
         },
         selectedName(): string {
             if (!this.selected_path.length) return ""
