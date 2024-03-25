@@ -379,13 +379,7 @@ export class TokenStream {
             }
         }
 
-        let eof = this.emitToken("eof")
-        while (true) {
-            yield eof
-            if (!this.tokens.includes(eof)) {
-                eof = this.emitToken("eof")
-            }
-        }
+        yield this.emitToken("eof")
     }
 
     [Symbol.iterator]() {
@@ -398,7 +392,7 @@ export class TokenStream {
         } else {
             const result = this.generator.next(this.regex)
             this.done = result.done ? true : false
-            if (result.done) return result
+            if (this.done) return result
         }
 
         if (this.ignoredTokens.includes(this.current.type)) {

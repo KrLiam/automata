@@ -1,3 +1,4 @@
+import { TokenStream } from "./tokenstream"
 
 export abstract class SentenceSymbol {
     value: string
@@ -44,6 +45,67 @@ export function get_sentence_length(sentence: SentencialSequence) {
     )
 }
 
+export function sequence_symbols(sequence: SentencialSequence) {
+    const symbols: SentencialSequence = []
+
+    for (const symbol of sequence) {
+        if (is_terminal(symbol)) {
+            for (const char of symbol.value) {
+                symbols.push(new Terminal(char))
+            }
+        }
+        else symbols.push(symbol)
+    }
+
+    return symbols
+}
+
+export function escape_chars(str: string, chars: string[]) {
+    return str.split("").map(ch => chars.includes(ch) ? "\\" + ch : ch).join("")
+}
+
+export function serialize_sequence(sequence: SentencialSequence): string {
+    let result = ""
+
+    for (const symbol of sequence) {
+        if (is_terminal(symbol)) {
+            result += escape_chars(symbol.value, ["\\", "<"])
+        }
+        else {
+            result += "<" + symbol.value + ">"
+        }
+    }
+
+    return result
+}
+export function parse_sequence(str: string): SentencialSequence {
+    const stream = new TokenStream(str)
+
+    const patterns = {
+        nonterminal: String.raw`<\s*[a-zA-Z0-9_]+\s*>`,
+        terminal: String.raw`[^\\<]`,
+        escaped_terminal: String.raw`\\.`,
+    }
+    return stream.syntax(patterns, () => {
+        const sequence: SentencialSequence = []
+
+        for (const token of stream) {
+            if (token.type === "nonterminal") {
+                sequence.push(new NonTerminal(token.value.slice(1, -1)))
+            }
+            else if (token.type === "terminal") {
+                sequence.push(new Terminal(token.value))
+            }
+            else {
+                sequence.push(new Terminal(token.value[1]))
+            }
+        }
+
+        return sequence
+    })
+}
+
+
 export class ProductionRule {
     head: SentencialSequence
     results: SentencialSequence[]
@@ -53,6 +115,9 @@ export class ProductionRule {
         this.results = [...results]
     }
 }
+
+export type RuleMatch = [pos: number, rule: ProductionRule]
+
 
 export enum GrammarType {
     Regular = 3,
@@ -212,5 +277,59 @@ export class Grammar {
         }
 
         return true
+    }
+
+    rule_map() {
+        const map: {[sequence: string]: SentencialSequence[]} = {}
+
+        for (const rule of this.rules) {
+            const key = serialize_sequence(rule.head)
+
+            if (!map[key]) map[key] = []
+            map[key].push(...rule.results)
+        }
+
+        return map
+    }
+
+    start_sequence(): SentencialSequence {
+        return [new NonTerminal(this.start_symbol)]
+    }
+
+    match_rules(sequence: SentencialSequence): RuleMatch[] {
+        const symbols = sequence_symbols(sequence)
+        const rule_map = this.rule_map()
+
+        const all_matches: RuleMatch[] = []
+
+        for (let i = 0; i < symbols.length; i++) {
+            for (let len = 1; len <= symbols.length; len++) {
+                const subsequence = symbols.slice(i, i + len)
+                const key = serialize_sequence(subsequence)
+
+                const results = rule_map[key]
+                if (!results || !results.length) continue
+
+                const match: RuleMatch = [i, new ProductionRule(subsequence, ...results)]
+                all_matches.push(match)
+            }
+        }
+
+        return all_matches
+    }
+
+    rewrite(sequence: SentencialSequence): SentencialSequence[] {
+        const matches = this.match_rules(sequence)
+        const results: SentencialSequence[] = []
+
+        for (const [i, rule] of matches) {
+            for (const symbols of rule.results) {
+                const result = sequence_symbols(sequence)
+                result.splice(i, rule.head.length, ...symbols)
+                results.push(result)
+            }
+        }
+
+        return results
     }
 }
