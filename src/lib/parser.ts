@@ -1045,7 +1045,14 @@ export function parse_grammar_alternative(stream: TokenStream) {
 }
 
 export function parse_grammar_sequence(stream: TokenStream) {    
-    return stream.syntax({nonterminal_symbol: "[A-Z]", terminal_symbol: "[a-z]+"}, () => {
+    const patterns = {
+        opening_angle_bracket: "<",
+        closing_angle_bracket: ">",
+        nonterminal_symbol: "[A-Z]",
+        terminal_symbol: "[a-z]+",
+        escaped_terminal: String.raw`\\.`,
+    }
+    return stream.syntax(patterns, () => {
         const sequence: SentencialSequence = []
 
         const {result: string} = stream.checkpoint(commit => {
@@ -1058,22 +1065,56 @@ export function parse_grammar_sequence(stream: TokenStream) {
             return set_location(new AstGrammarSequence({value: [symbol]}), string)
         }
         
-        const [nonterminal, terminal] = stream.expect_multiple("nonterminal_symbol", "terminal_symbol")
+        const [
+            opening_angle_bracket,
+            nonterminal_symbol,
+            terminal_symbol,
+            escaped_terminal
+        ] = stream.expect_multiple(
+            "opening_angle_bracket",
+            "nonterminal_symbol",
+            "terminal_symbol",
+            "escaped_terminal",
+        )
         stream = stream.intercept(["newline"])
 
-        let start = nonterminal ?? terminal as Token
+        let start = (
+            opening_angle_bracket ??
+            nonterminal_symbol ??
+            terminal_symbol ??
+            escaped_terminal
+        ) as Token
         let end = start
 
         let token: Token | null = start
         while (token) {
-            const node = token.type === "nonterminal_symbol" ?
-                new NonTerminal(token.value) :
-                new Terminal(token.value)
+            if (token.type === "opening_angle_bracket") {
+                const identifier = delegate("identifier", stream) as AstIdentifier
 
-            sequence.push(node)
+                if (!stream.get("closing_angle_bracket")) throw set_location(
+                    new InvalidSyntax(`Unclosed non-terminal variable.`),
+                    token,
+                )
+                
+                sequence.push(new NonTerminal(identifier.value))
+            }
+            else if (token.type === "nonterminal_symbol") {
+                sequence.push(new NonTerminal(token.value))
+            }
+            else if (token.type === "escaped_terminal") {
+                sequence.push(new Terminal(token.value[1]))
+            }
+            else {
+                sequence.push(new Terminal(token.value))
+            }
 
             end = token
-            token = stream.get("nonterminal_symbol", "terminal_symbol")
+            token = stream.get(
+                "nonterminal",
+                "nonterminal_symbol",
+                "terminal_symbol",
+                "escaped_terminal",
+            )
         }
 
         return set_location(new AstGrammarSequence({value: sequence}), start, end)
