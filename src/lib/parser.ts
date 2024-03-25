@@ -1095,7 +1095,7 @@ export function parse_grammar_sequence(stream: TokenStream) {
                     new InvalidSyntax(`Unclosed non-terminal variable.`),
                     token,
                 )
-                
+
                 sequence.push(new NonTerminal(identifier.value))
             }
             else if (token.type === "nonterminal_symbol") {
@@ -1110,7 +1110,7 @@ export function parse_grammar_sequence(stream: TokenStream) {
 
             end = token
             token = stream.get(
-                "nonterminal",
+                "opening_angle_bracket",
                 "nonterminal_symbol",
                 "terminal_symbol",
                 "escaped_terminal",
