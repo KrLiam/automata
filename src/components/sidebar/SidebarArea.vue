@@ -15,22 +15,7 @@
                 View Deterministic
             </button>
 
-            <form
-                class="test-input"
-                @submit="start_test"
-                v-if="inserting_test_input"
-            >
-                <input
-                    type="text"
-                    placeholder="Input"
-                    v-model="test_input"
-                    v-focus
-                />
-                <button type="submit">Go</button>
-            </form>
-            <button @click="insert_test_input" v-else-if="show_test_input">
-                Test
-            </button>
+            <TestInputButton @submit="start_test" v-if="isSelectedAutomaton && show_test_input"/>
         </div>
         <p class="green text-small" v-if="selected_path.length && elements.length">
             Children
@@ -58,18 +43,15 @@ defineEmits<{
 <script lang="ts">
 import { defineComponent, defineProps } from "vue"
 import SelectMenu, { type SelectElement, type SelectEvent } from "./SelectMenu.vue"
-import { LangObject, type_name, type Scope } from "../lib/evaluator"
+import TestInputButton from "./TestInputButton.vue"
+import { GrammarObject, LangObject, type_name, type Scope } from "@/lib/evaluator"
 import { FiniteAutomaton, StateMachine, TuringMachine } from "@/lib/automaton"
 import { Grammar } from "@/lib/grammar"
 
 export default defineComponent({
     components: {
         SelectMenu,
-    },
-    directives: {
-        focus(el) {
-            el?.focus()
-        },
+        TestInputButton,
     },
     data: () => ({
         selected_path: [] as string[],
@@ -128,6 +110,10 @@ export default defineComponent({
             return ""
         },
 
+        isSelectedAutomaton() {
+            return this.selected && this.selected.value instanceof StateMachine
+        },
+
         showViewDeterministic(): boolean {
             const obj = this.selected
             if (!obj || !(obj.value instanceof FiniteAutomaton)) return false
@@ -146,14 +132,10 @@ export default defineComponent({
     },
     methods: {
         select(name: string) {
-            this.clear_test_input()
-
             this.selected_path.push(name)
             this.$emit("selected", [...this.selected_path])
         },
         unselect() {
-            this.clear_test_input()
-
             this.selected_path.pop()
             this.$emit("selected", [...this.selected_path])
         },
@@ -165,16 +147,8 @@ export default defineComponent({
             this.select("#det")
         },
 
-        insert_test_input() {
-            this.inserting_test_input = true
-        },
-        clear_test_input() {
-            this.inserting_test_input = false
-            this.test_input = ""
-        },
-        start_test() {
-            this.$emit("test", this.test_input)
-            this.clear_test_input()
+        start_test(input: string) {
+            this.$emit("test", input)
         },
     },
 })
@@ -223,32 +197,5 @@ export default defineComponent({
 .menu-top > .return {
     padding: 0.5em 1.25em;
     font-weight: 800;
-}
-
-.test-input {
-    display: flex;
-    gap: 0.5rem;
-    width: 100%;
-    height: 2.33rem;
-}
-.test-input > button {
-    flex-shrink: 0;
-    width: 4rem;
-    padding: 0;
-    text-align: center;
-    line-height: 50%;
-}
-.test-input > input {
-    width: 100%;
-    flex-grow: 1;
-    flex-shrink: 1;
-
-    outline: none;
-    border: none;
-    border-radius: 0.2rem;
-    background: var(--light-gray);
-}
-.test-input > input:focus {
-    outline: 0.15rem solid var(--detail-green);
 }
 </style>
