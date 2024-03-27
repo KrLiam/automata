@@ -40,10 +40,11 @@ export interface SequenceRange {
 export default defineComponent({
     computed: {
         symbol_ranges(): SequenceRange[] {
-            let symbols = sequence_symbols(this.value)
+            if (this.highlight_range === null) return [
+                {highlight:false, symbols: this.format_sequence(this.value)}
+            ]
 
-            if (this.highlight_range === null) return [{highlight:false, symbols}]
-
+            const symbols = sequence_symbols(this.value)
             const [start_i, end_i] = this.highlight_range
             
             const ranges: SequenceRange[] = [

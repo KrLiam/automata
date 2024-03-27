@@ -59,6 +59,11 @@ export function sequence_symbols(sequence: SentencialSequence) {
 
     for (const symbol of sequence) {
         if (is_terminal(symbol)) {
+            if (!symbol.value.length) {
+                symbols.push(new Terminal(""))
+                continue
+            }
+            
             for (const char of symbol.value) {
                 symbols.push(new Terminal(char))
             }
