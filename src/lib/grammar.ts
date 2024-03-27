@@ -63,7 +63,7 @@ export function sequence_symbols(sequence: SentencialSequence) {
                 symbols.push(new Terminal(""))
                 continue
             }
-            
+
             for (const char of symbol.value) {
                 symbols.push(new Terminal(char))
             }
@@ -158,13 +158,17 @@ export type RuleMatch = [pos: number, rule: ProductionRule]
 export type SequenceSubstitution = [pos: number, length: number, insert_symbols: SentencialSequence]
 
 export function apply_substitution(
-    sequence: SentencialSequence, substitution: SequenceSubstitution
+    sequence: SentencialSequence, ...substitutions: SequenceSubstitution[]
 ): SentencialSequence {
+    if (!substitutions.length) return sequence
+    const [substitution, ...remaining] = substitutions
+
     const [pos, length, insert_symbols] = substitution
 
     const result = sequence_symbols(sequence)
     result.splice(pos, length, ...insert_symbols)
-    return result
+
+    return apply_substitution(result, ...remaining)
 }
 
 export enum GrammarType {
