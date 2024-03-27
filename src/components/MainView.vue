@@ -12,10 +12,11 @@
                 <template v-slot:left>
                     <SidebarArea
                         class="main-sidebar"
-                        :show_test_input="!testing"
+                        :show_test_button="!testing"
                         :selected="get_selected_object()"
                         @selected="update_selected"
                         @test="test"
+                        @test_grammar="test_grammar"
                     ></SidebarArea>
                 </template>
                 <template v-slot:right>
@@ -32,12 +33,17 @@
         </template>
         <template v-slot:right>
             <TestingTool
-                v-if="testing"
+                v-if="isTestingAutomaton"
                 :input="test_input"
                 :automaton="get_selected_automaton()"
                 @close="close_test"
                 @updated-state="updated_test_state"
             ></TestingTool>
+            <GrammarTestingTool
+                v-else-if="isTestingGrammar"
+                :grammar="get_selected_grammar() as Grammar"
+                @close="close_test"
+            ></GrammarTestingTool>
             <OutputMessages
                 v-else
                 class="main-output"
@@ -65,27 +71,27 @@ import { defineComponent, defineProps } from "vue"
 import OutputMessages from "./OutputMessages.vue"
 import SplitView from "./SplitView.vue"
 import TestingTool, { type Instance } from "./TestingTool.vue"
+import GrammarTestingTool from "./testing/grammar/GrammarTestingTool.vue"
 import GraphVisualizer, { type Visualizer } from "./GraphVisualizer.vue"
 import SidebarArea from "./sidebar/SidebarArea.vue"
-import { type SelectElement, type SelectEvent } from "./sidebar/SelectMenu.vue"
-import { FiniteObject, LangObject, Scope } from "../lib/evaluator"
-import { FiniteAutomaton, StateMachine, TuringMachine, type Transition } from "../lib/automaton"
+import { FiniteObject, GrammarObject, LangObject, Scope } from "../lib/evaluator"
+import { StateMachine, TuringMachine } from "../lib/automaton"
 import { convert_turing_xml } from "../lib/export"
 import {
     make_graph,
     random_position,
     type GraphData,
-    Canvas,
     type Vector2,
-vec,
-type GraphStyle,
-tuple_key,
+    type GraphStyle,
+    tuple_key,
 } from "../lib/graph"
+import type { Grammar } from "@/lib/grammar"
 
 export default defineComponent({
     components: {
         OutputMessages,
         TestingTool,
+        GrammarTestingTool,
         GraphVisualizer,
         SidebarArea,
         SplitView,
@@ -115,7 +121,14 @@ export default defineComponent({
     computed: {
         selectedName() {
             return this.selected.join("/")
-        }
+        },
+
+        isTestingAutomaton() {
+            return this.testing && this.get_selected_automaton() !== null
+        },
+        isTestingGrammar() {
+            return this.testing && this.get_selected_grammar() !== null
+        },
     },
     methods: {
         get_graph(name: string): GraphData {
@@ -219,12 +232,23 @@ export default defineComponent({
 
             return obj.value instanceof StateMachine ? obj.value : null
         },
-
+        get_selected_grammar(): Grammar | null {
+            const obj = this.get_selected_object()
+            return obj instanceof GrammarObject ? obj.value : null
+        },
+ 
         test(input: string) {
             const automaton = this.get_selected_automaton()
             if (!automaton) return
 
             this.test_input = input
+            this.testing = true
+
+            this.$emit("lock-compilation")
+        },
+        test_grammar() {
+            if (!this.get_selected_grammar()) return
+            
             this.testing = true
 
             this.$emit("lock-compilation")

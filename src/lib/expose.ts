@@ -13,7 +13,7 @@ import { convert_turing_xml } from "./export"
 import { get_default_parsers, delegate, Patterns } from "./parser"
 import { TokenStream, SourceLocation } from "./tokenstream"
 import { get_class_hierarchy, Visitor, rule, Rule } from "./visitor"
-import { Grammar, NonTerminal, parse_sequence, ProductionRule, serialize_sequence, Terminal } from "./grammar"
+import { apply_substitution, Grammar, NonTerminal, parse_sequence, ProductionRule, serialize_sequence, Terminal } from "./grammar"
 
 export const exposed_default = {
     TokenStream,
@@ -39,6 +39,7 @@ export const exposed_default = {
     ProductionRule,
     parse_sequence,
     serialize_sequence,
+    apply_substitution,
 }
 
 export function expose(values: { [name: string]: any }) {

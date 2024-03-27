@@ -118,6 +118,17 @@ export class ProductionRule {
 
 export type RuleMatch = [pos: number, rule: ProductionRule]
 
+export type SequenceSubstitution = [pos: number, length: number, insert_symbols: SentencialSequence]
+
+export function apply_substitution(
+    sequence: SentencialSequence, substitution: SequenceSubstitution
+): SentencialSequence {
+    const [pos, length, insert_symbols] = substitution
+
+    const result = sequence_symbols(sequence)
+    result.splice(pos, length, ...insert_symbols)
+    return result
+}
 
 export enum GrammarType {
     Regular = 3,
@@ -303,10 +314,10 @@ export class Grammar {
         const all_matches: RuleMatch[] = []
 
         for (let i = 0; i < symbols.length; i++) {
-            for (let len = 1; len <= symbols.length; len++) {
+            for (let len = 1; len <= symbols.length - i; len++) {
                 const subsequence = symbols.slice(i, i + len)
                 const key = serialize_sequence(subsequence)
-
+                
                 const results = rule_map[key]
                 if (!results || !results.length) continue
 
@@ -318,15 +329,14 @@ export class Grammar {
         return all_matches
     }
 
-    rewrite(sequence: SentencialSequence): SentencialSequence[] {
+    rewrite(sequence: SentencialSequence): SentencialSequence[] {        
         const matches = this.match_rules(sequence)
         const results: SentencialSequence[] = []
 
         for (const [i, rule] of matches) {
             for (const symbols of rule.results) {
-                const result = sequence_symbols(sequence)
-                result.splice(i, rule.head.length, ...symbols)
-                results.push(result)
+                const substitution: SequenceSubstitution = [i, rule.head.length, symbols]
+                results.push(apply_substitution(sequence, substitution))
             }
         }
 

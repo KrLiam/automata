@@ -6,16 +6,17 @@
                 <div>
                     <span class="type green text-small">{{ selectedType }}</span>
                     <span class="name">{{ selectedName }}</span>
-                    <span class="modifier green" v-if="selectedModifier"
-                        >#{{ selectedModifier }}</span
-                    >
+                    <span class="modifier green" v-if="selectedModifier">
+                        #{{ selectedModifier }}
+                    </span>
                 </div>
             </div>
             <button v-if="showViewDeterministic" @click="view_deterministic">
                 View Deterministic
             </button>
 
-            <TestInputButton @submit="start_test" v-if="isSelectedAutomaton && show_test_input"/>
+            <button @click="test_grammar" v-if="isSelectedGrammar && show_test_button">Test Grammar</button>
+            <TestInputButton @submit="start_test" v-if="isSelectedAutomaton && show_test_button"/>
         </div>
         <p class="green text-small" v-if="selected_path.length && elements.length">
             Children
@@ -32,20 +33,21 @@
 <script lang="ts" setup>
 defineProps<{
     selected: LangObject | null
-    show_test_input: boolean
+    show_test_button: boolean
 }>()
 defineEmits<{
     (e: "selected", path: string[]): void
     (e: "test", input: string): void
+    (e: "test_grammar"): void
 }>()
 </script>
 
 <script lang="ts">
 import { defineComponent, defineProps } from "vue"
-import SelectMenu, { type SelectElement, type SelectEvent } from "./SelectMenu.vue"
+import SelectMenu, { type SelectElement } from "./SelectMenu.vue"
 import TestInputButton from "./TestInputButton.vue"
-import { GrammarObject, LangObject, type_name, type Scope } from "@/lib/evaluator"
-import { FiniteAutomaton, StateMachine, TuringMachine } from "@/lib/automaton"
+import { GrammarObject, LangObject, type_name } from "@/lib/evaluator"
+import { FiniteAutomaton, StateMachine } from "@/lib/automaton"
 import { Grammar } from "@/lib/grammar"
 
 export default defineComponent({
@@ -110,6 +112,9 @@ export default defineComponent({
             return ""
         },
 
+        isSelectedGrammar() {
+            return this.selected instanceof GrammarObject
+        },
         isSelectedAutomaton() {
             return this.selected && this.selected.value instanceof StateMachine
         },
@@ -150,6 +155,10 @@ export default defineComponent({
         start_test(input: string) {
             this.$emit("test", input)
         },
+
+        test_grammar() {
+            this.$emit("test_grammar")
+        }
     },
 })
 </script>
