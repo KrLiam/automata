@@ -11,12 +11,18 @@
 
         <ul class="steps" v-if=selected_instance>
             <li class="step" v-for="(sequence, i) in selected_steps" :key="i">
-                <SentenceElement :value="sequence"/>
+                <SentenceElement :value="sequence" :highlight_range="highlight_range"/>
             </li>
         </ul>
 
         <ul class="rules">
-            <li class="rule" v-for="([pos, rule], i) in selected_matched_rules" :key="i">
+            <li
+                class="rule"
+                v-for="([pos, rule], i) in selected_matched_rules"
+                :key="`${step_num}-${i}`"
+                @mouseenter="highlight_subsequence(pos, rule.head.length)"
+                @mouseleave="clear_highlight()"
+            >
                 <SentenceElement :value="rule.head"/>
                 <span class="rule-arrow">➜</span>
                 <span>
@@ -60,7 +66,8 @@ export default defineComponent({
     watch: {
     },
     data: () => ({
-        instances: [] as ProductionInstance[]
+        instances: [] as ProductionInstance[],
+        highlight_range: null as [number, number] | null
     }),
     mounted() {
         this.start()
@@ -84,7 +91,13 @@ export default defineComponent({
 
             const matches = this.grammar.match_rules(instance.sequence)
             return matches
-        }
+        },
+        step_num() {
+            const instance = this.selected_instance
+            if (!instance) return []
+
+            return instance.substitutions.length + 1
+        },
     },
     methods: {
         start() {
@@ -114,9 +127,18 @@ export default defineComponent({
             if (!instance) return null
 
             const sequence = apply_substitution([...instance.sequence], value)
-
+            
             instance.sequence = sequence
             instance.substitutions.push(value)
+
+            this.clear_highlight()
+        },
+
+        highlight_subsequence(pos: number, length: number) {
+            this.highlight_range = [pos, pos + length]
+        },
+        clear_highlight() {
+            this.highlight_range = null
         },
 
         close() {
