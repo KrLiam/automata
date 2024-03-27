@@ -31,13 +31,22 @@ export function reverse_symbol(symbol: SentenceSymbol) {
         symbol
 }
 
+export function copy_symbol(symbol: SentenceSymbol) {
+    return is_terminal(symbol) ? new Terminal(symbol.value) : new NonTerminal(symbol.value)
+}
+
 
 export type SentencialSequence = (NonTerminal | Terminal)[]
 export type Sentence = Terminal[]
 
-export function is_empty_sentence(sentence: SentencialSequence) {
-    return sentence.every(symbol => is_terminal(symbol) && symbol.value === "")
+
+export function is_empty_terminal(symbol: any) {
+    return is_terminal(symbol) && symbol.value === ""
 }
+export function is_empty_sentence(sentence: SentencialSequence) {
+    return sentence.every(is_empty_terminal)
+}
+
 export function get_sentence_length(sentence: SentencialSequence) {
     return sentence.reduce(
         (acc, symbol) => acc + (is_terminal(symbol) ? symbol.value.length : 1),
@@ -58,6 +67,29 @@ export function sequence_symbols(sequence: SentencialSequence) {
     }
 
     return symbols
+}
+
+export function merge_terminals(sequence: SentencialSequence): SentencialSequence {
+    if (!sequence.length) return []
+    sequence = sequence.map(copy_symbol)
+
+    const first = sequence[0]
+    sequence = sequence.slice(1)
+
+    const result: SentencialSequence = [first]
+
+    for (const symbol of sequence) {
+        const previous = result[result.length - 1]
+
+        if (is_terminal(symbol) && is_terminal(previous)) {
+            previous.value += symbol.value
+        }
+        else {
+            result.push(symbol)
+        }
+    }
+
+    return result
 }
 
 export function escape_chars(str: string, chars: string[]) {

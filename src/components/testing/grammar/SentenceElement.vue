@@ -1,7 +1,7 @@
 <template>
     <span class="sentence">
         <span
-            v-for="(symbol, i) in value"
+            v-for="(symbol, i) in symbol_sequence"
             :class="[is_nonterminal(symbol) ? 'nonterminal' : null]"
             :key="i"
         >
@@ -11,12 +11,26 @@
 </template>
 
 <script lang="ts" setup>
-import { defineProps } from 'vue';
-import { type SentencialSequence, is_nonterminal } from "@/lib/grammar"
-
 defineProps<{
     value: SentencialSequence
 }>()
+</script>
+
+<script lang="ts">
+import { defineComponent, defineProps } from 'vue';
+import { type SentencialSequence, is_empty_terminal, is_nonterminal, merge_terminals, Terminal } from "@/lib/grammar"
+
+export default defineComponent({
+    computed: {
+        symbol_sequence() {
+            const sequence = merge_terminals(this.value)
+
+            return sequence.map(
+                symbol => is_empty_terminal(symbol) ? new Terminal("ε") : symbol
+            )
+        },
+    }
+})
 </script>
 
 <style scoped>
