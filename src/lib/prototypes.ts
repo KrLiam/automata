@@ -38,7 +38,7 @@ import {
 } from "./ast"
 import { FiniteAutomaton, PushdownAutomaton, Tape, TuringMachine } from "./automaton"
 import { Binding, Scope, LangObject, FiniteObject, TuringObject, PushdownObject, GrammarObject } from "./evaluator"
-import { Grammar, NonTerminal, ProductionRule, SentenceSymbol, Terminal } from "./grammar"
+import { Grammar, NonTerminal, ProductionRule, Terminal } from "./grammar"
 import { SourceLocation, Token } from "./tokenstream"
 
 export const prototypes: any[] = [
@@ -48,7 +48,6 @@ export const prototypes: any[] = [
     PushdownAutomaton,
     Terminal,
     NonTerminal,
-    SentenceSymbol,
     Grammar,
     ProductionRule,
     Binding,

@@ -30,7 +30,7 @@ withDefaults(
 
 <script lang="ts">
 import { defineComponent, defineProps } from 'vue';
-import { type SentencialSequence, is_empty_terminal, is_nonterminal, merge_terminals, sequence_symbols, Terminal } from "@/lib/grammar"
+import { type SentencialSequence, is_nonterminal, is_terminal, merge_terminals, sequence_symbols, Terminal } from "@/lib/grammar"
 
 export interface SequenceRange {
     highlight: boolean,
@@ -66,7 +66,7 @@ export default defineComponent({
             const sequence = merge_terminals(value)
 
             return sequence.map(
-                symbol => is_empty_terminal(symbol) ? new Terminal("ε") : symbol
+                symbol => is_terminal(symbol, "") ? new Terminal("ε") : symbol
             )
         }
     }

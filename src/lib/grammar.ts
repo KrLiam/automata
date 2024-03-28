@@ -1,29 +1,44 @@
 import { TokenStream } from "./tokenstream"
 
-export abstract class SentenceSymbol {
+export enum SymbolType {
+    Terminal,
+    NonTerminal,
+}
+
+export class NonTerminal {
+    type: SymbolType.NonTerminal = SymbolType.NonTerminal
     value: string
 
-    constructor(value: string) {
+    constructor(value: string = "") {
         this.value = value
     }
 }
-export class NonTerminal extends SentenceSymbol {}
-export class Terminal extends SentenceSymbol {}
+export class Terminal {
+    type: SymbolType.Terminal = SymbolType.Terminal
+    value: string
 
-export function is_nonterminal(obj: any, value?: string): boolean {
-    if (!(obj instanceof NonTerminal)) return false
+    constructor(value: string = "") {
+        this.value = value
+    }
+}
+
+export type SentenceSymbol = NonTerminal | Terminal
+
+
+export function is_nonterminal(obj: any, value?: string): obj is NonTerminal {
+    if (typeof obj !== "object" || obj.type !== SymbolType.NonTerminal ) return false
     if (value !== undefined && obj.value !== value) return false
 
     return true}
 
-export function is_terminal(obj: any, value?: string): boolean {
-    if (!(obj instanceof Terminal)) return false
+export function is_terminal(obj: any, value?: string): obj is Terminal {
+    if (typeof obj !== "object" || obj.type !== SymbolType.Terminal ) return false
     if (value !== undefined && obj.value !== value) return false
 
     return true
 }
 
-export function reverse_symbol(symbol: SentenceSymbol) {
+export function reverse_symbol(symbol: SentenceSymbol): SentenceSymbol {
     const reversed_value = symbol.value.split("").reverse().join("")
 
     return is_terminal(symbol) ?
@@ -31,20 +46,17 @@ export function reverse_symbol(symbol: SentenceSymbol) {
         symbol
 }
 
-export function copy_symbol(symbol: SentenceSymbol) {
+export function copy_symbol(symbol: SentenceSymbol): SentenceSymbol {
     return is_terminal(symbol) ? new Terminal(symbol.value) : new NonTerminal(symbol.value)
 }
 
 
-export type SentencialSequence = (NonTerminal | Terminal)[]
+export type SentencialSequence = SentenceSymbol[]
 export type Sentence = Terminal[]
 
 
-export function is_empty_terminal(symbol: any) {
-    return is_terminal(symbol) && symbol.value === ""
-}
 export function is_empty_sentence(sentence: SentencialSequence) {
-    return sentence.every(is_empty_terminal)
+    return sentence.every(symbol => is_terminal(symbol, ""))
 }
 
 export function get_sentence_length(sentence: SentencialSequence) {
@@ -54,21 +66,15 @@ export function get_sentence_length(sentence: SentencialSequence) {
     )
 }
 
-export function sequence_symbols(sequence: SentencialSequence) {
-    const symbols: SentencialSequence = []
+export function sequence_symbols(sequence: SentencialSequence): SentenceSymbol[] {
+    const symbols: SentenceSymbol[] = []
 
     for (const symbol of sequence) {
         if (is_terminal(symbol)) {
-            if (!symbol.value.length) {
-                symbols.push(new Terminal(""))
-                continue
-            }
-
-            for (const char of symbol.value) {
-                symbols.push(new Terminal(char))
-            }
+            const chars = symbol.value ? [...symbol.value] : [""]
+            symbols.push(...chars.map(char => new Terminal(char)))
         }
-        else symbols.push(symbol)
+        else symbols.push(copy_symbol(symbol))
     }
 
     return symbols
@@ -100,6 +106,7 @@ export function merge_terminals(sequence: SentencialSequence): SentencialSequenc
 export function escape_chars(str: string, chars: string[]) {
     return str.split("").map(ch => chars.includes(ch) ? "\\" + ch : ch).join("")
 }
+
 
 export function serialize_sequence(sequence: SentencialSequence): string {
     let result = ""
