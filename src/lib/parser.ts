@@ -1049,7 +1049,7 @@ export function parse_grammar_sequence(stream: TokenStream) {
         opening_angle_bracket: "<",
         closing_angle_bracket: ">",
         nonterminal_symbol: "[A-Z]",
-        terminal_symbol: "[a-z]+",
+        terminal_symbol: "[a-z0-9]+",
         escaped_terminal: String.raw`\\.`,
     }
     return stream.syntax(patterns, () => {
