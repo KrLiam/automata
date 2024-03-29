@@ -12,11 +12,12 @@
                 <template v-slot:left>
                     <SidebarArea
                         class="main-sidebar"
-                        :show_test_button="!testing"
+                        :show_test_button="isIdle"
                         :selected="get_selected_object()"
                         @selected="update_selected"
-                        @test="test"
+                        @test_automaton="test_automaton"
                         @test_grammar="test_grammar"
+                        @enumerate_grammar="enumerate_grammar"
                     ></SidebarArea>
                 </template>
                 <template v-slot:right>
@@ -44,6 +45,11 @@
                 :grammar="get_selected_grammar() as Grammar"
                 @close="close_test"
             ></GrammarTestingTool>
+            <GrammarEnumerator
+                v-else-if="isEnumeratingGrammar"
+                :grammar="get_selected_grammar() as Grammar"
+                @close="close_test"
+            ></GrammarEnumerator>
             <OutputMessages
                 v-else
                 class="main-output"
@@ -72,6 +78,7 @@ import OutputMessages from "./OutputMessages.vue"
 import SplitView from "./SplitView.vue"
 import TestingTool, { type Instance } from "./TestingTool.vue"
 import GrammarTestingTool from "./testing/grammar/GrammarTestingTool.vue"
+import GrammarEnumerator from "./testing/grammar/GrammarEnumerator.vue"
 import GraphVisualizer, { type Visualizer } from "./GraphVisualizer.vue"
 import SidebarArea from "./sidebar/SidebarArea.vue"
 import { FiniteObject, GrammarObject, LangObject, Scope } from "../lib/evaluator"
@@ -87,11 +94,19 @@ import {
 } from "../lib/graph"
 import type { Grammar } from "@/lib/grammar"
 
+export enum Status {
+    Idle,
+    TestingAutomaton,
+    TestingGrammar,
+    EnumeratingGrammar,
+}
+
 export default defineComponent({
     components: {
         OutputMessages,
         TestingTool,
         GrammarTestingTool,
+        GrammarEnumerator,
         GraphVisualizer,
         SidebarArea,
         SplitView,
@@ -102,7 +117,7 @@ export default defineComponent({
         graph_style: null as GraphStyle | null,
         visualizer: null as Visualizer | null,
 
-        testing: false as boolean,
+        status: Status.Idle as Status,
         test_input: null as string | null,
     }),
     mounted() {
@@ -123,12 +138,27 @@ export default defineComponent({
             return this.selected.join("/")
         },
 
+        isIdle() {
+            return this.status === Status.Idle
+        },
         isTestingAutomaton() {
-            return this.testing && this.get_selected_automaton() !== null
+            return (
+                this.status === Status.TestingAutomaton
+                && this.get_selected_automaton() !== null
+            )
         },
         isTestingGrammar() {
-            return this.testing && this.get_selected_grammar() !== null
+            return (
+                this.status === Status.TestingGrammar
+                && this.get_selected_grammar() !== null
+            )
         },
+        isEnumeratingGrammar() {
+            return (
+                this.status === Status.EnumeratingGrammar
+                && this.get_selected_grammar() !== null
+            )
+        }
     },
     methods: {
         get_graph(name: string): GraphData {
@@ -237,24 +267,28 @@ export default defineComponent({
             return obj instanceof GrammarObject ? obj.value : null
         },
  
-        test(input: string) {
+        test_automaton(input: string) {
             const automaton = this.get_selected_automaton()
             if (!automaton) return
 
+            this.status = Status.TestingAutomaton
             this.test_input = input
-            this.testing = true
-
             this.$emit("lock-compilation")
         },
         test_grammar() {
             if (!this.get_selected_grammar()) return
             
-            this.testing = true
-
+            this.status = Status.TestingGrammar
+            this.$emit("lock-compilation")
+        },
+        enumerate_grammar() {
+            if (!this.get_selected_grammar()) return
+            
+            this.status = Status.EnumeratingGrammar
             this.$emit("lock-compilation")
         },
         close_test() {
-            this.testing = false
+            this.status = Status.Idle
             this.test_input = null
             this.graph_style = null
 

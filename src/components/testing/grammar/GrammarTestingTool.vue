@@ -18,7 +18,7 @@
 
         <div data-observer-intercept ref="sticky_intercept"></div>
         <div class="sequence-container" ref="sticky_container">
-            <SentenceElement :value="selected_sequence" :highlight_range="highlight_range"/>
+            <SentenceElement class="sentence" :value="selected_sequence" :highlight_range="highlight_range"/>
         </div>
 
         <ul class="rules">
@@ -27,7 +27,7 @@
                 v-for="([pos, rule], i) in selected_matched_rules"
                 :key="`${step_num}-${i}`"
             >
-                <SentenceElement :value="rule.head"/>
+                <SentenceElement class="sentence" :value="rule.head"/>
                 <span class="rule-arrow">➜</span>
                 <span class="rule-options">
                     <SentenceElement
@@ -37,7 +37,7 @@
                         @click="apply_rule([pos, rule.head.length, result])"
                         @mouseenter="highlight_subsequence(pos, rule.head.length)"
                         @mouseleave="clear_highlight()"
-                        class="rule-option"
+                        class="sentence rule-option"
                     />
                 </span>
             </li>
@@ -223,6 +223,9 @@ export default defineComponent({
 }
 .sequence-container.shadow {
     box-shadow: 0 0.1rem 0.5rem rgba(0, 0, 0, 0.2);
+}
+.sentence {
+    font-size: 1.5rem;
 }
 
 .rules {

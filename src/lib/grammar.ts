@@ -50,13 +50,20 @@ export function copy_symbol(symbol: SentenceSymbol): SentenceSymbol {
     return is_terminal(symbol) ? new Terminal(symbol.value) : new NonTerminal(symbol.value)
 }
 
-
 export type SentencialSequence = SentenceSymbol[]
 export type Sentence = Terminal[]
 
 
 export function is_empty_sentence(sentence: SentencialSequence) {
     return sentence.every(symbol => is_terminal(symbol, ""))
+}
+
+export function is_sentence(sentence: SentencialSequence): sentence is Sentence {
+    return sentence.every(symbol => is_terminal(symbol))
+}
+
+export function copy_sequence(sequence: SentencialSequence): SentencialSequence {
+    return sequence.map(symbol => copy_symbol(symbol))
 }
 
 export function get_sentence_length(sentence: SentencialSequence) {
@@ -203,6 +210,18 @@ export class Grammar {
         const [rule_nonterminals, rule_terminals] = this.get_used_symbols(this.rules)
         this.nonterminals = new Set([...nonterminals, ...rule_nonterminals])
         this.terminals = new Set([...terminals, ...rule_terminals])
+    }
+
+    copy() {
+        return new Grammar(
+            this.rules.map(rule => new ProductionRule(
+                copy_sequence(rule.head),
+                ...rule.results.map(sequence => copy_sequence(sequence))
+            )),
+            this.start_symbol,
+            this.nonterminals,
+            this.terminals
+        )
     }
 
     get_used_symbols(rules: Iterable<ProductionRule>): [Set<string>, Set<string>] {

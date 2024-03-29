@@ -16,7 +16,8 @@
             </button>
 
             <button @click="test_grammar" v-if="isSelectedGrammar && show_test_button">Test Grammar</button>
-            <TestInputButton @submit="start_test" v-if="isSelectedAutomaton && show_test_button"/>
+            <button @click="enumerate_grammar" v-if="isSelectedGrammar && show_test_button">Enumerate Sentences</button>
+            <TestInputButton @submit="test_automaton" v-if="isSelectedAutomaton && show_test_button"/>
         </div>
         <p class="green text-small" v-if="selected_path.length && elements.length">
             Children
@@ -37,8 +38,9 @@ defineProps<{
 }>()
 defineEmits<{
     (e: "selected", path: string[]): void
-    (e: "test", input: string): void
+    (e: "test_automaton", input: string): void
     (e: "test_grammar"): void
+    (e: "enumerate_grammar"): void
 }>()
 </script>
 
@@ -152,12 +154,16 @@ export default defineComponent({
             this.select("#det")
         },
 
-        start_test(input: string) {
-            this.$emit("test", input)
+        test_automaton(input: string) {
+            this.$emit("test_automaton", input)
         },
 
         test_grammar() {
             this.$emit("test_grammar")
+        },
+
+        enumerate_grammar() {
+            this.$emit("enumerate_grammar")
         }
     },
 })

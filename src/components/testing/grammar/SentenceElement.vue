@@ -75,7 +75,7 @@ export default defineComponent({
 
 <style scoped>
 .sentence * {
-    font-size: 1.5rem;
+    font-size: 1em;
     font-weight: 600;
     line-height: 0;
 }
