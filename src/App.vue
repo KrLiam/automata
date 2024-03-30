@@ -11,7 +11,7 @@ const MONACO_EDITOR_OPTIONS = {
 import { defineComponent } from "vue"
 import MainView from "./components/MainView.vue"
 import SplitView from "./components/SplitView.vue"
-import { example_code } from "./lib/example"
+import { example_code, example_graphs } from "./lib/example"
 import { recover_prototypes } from "./lib/prototypes"
 import { mount as editorMount } from "./lib/language"
 import { expose, exposed_default } from "./lib/expose"
@@ -25,7 +25,7 @@ export default defineComponent({
         SplitView,
     },
     data() {
-        const source = localStorage.editorSource as string
+        const source = localStorage.editorSource
         return {
             compiler: null as Worker | null,
             locked_compilation: false as boolean,
@@ -33,12 +33,14 @@ export default defineComponent({
             compilerBusy: false,
             timeout: null as number | null,
             changeInterval: 400,
-            code: source ? source : example_code,
+            code: typeof source === "string" ? source : "",
             messages: [] as any[],
             objects: null as Scope | null,
         }
     },
     mounted() {
+        if (!this.code.length) this.load_example_code()
+
         expose(exposed_default)
 
         this.restartCompiler()
@@ -51,6 +53,11 @@ export default defineComponent({
         })
     },
     methods: {
+        load_example_code() {
+            this.code = example_code
+            localStorage.saved_graphs = JSON.stringify(example_graphs)
+        },
+
         log(level: string, message: string, resetLine: boolean = false) {
             if (resetLine && this.messages.length) {
                 this.messages.pop()
