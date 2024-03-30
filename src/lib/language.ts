@@ -48,6 +48,7 @@ const languageDef: monaco.languages.IMonarchLanguage = {
 
 
             [/tapes\b/, {token: "keyword", next: "@tape_list"}],
+            [/grammar\b/, {token: "keyword", next: "@grammar"}],
 
 
             // literals and variables
@@ -146,6 +147,44 @@ const languageDef: monaco.languages.IMonarchLanguage = {
         multiline_comment: [
             ["(?:(?!\\*/).)+", "comment"],
             ["\\*/", {token: "comment", bracket: "@close", next: "@pop"}]
+        ],
+
+        grammar: [
+            [/[a-zA-Z][\w]*/, {
+                cases: {
+                    "@keywords": "keyword",
+                    "@default": "variable",
+                }
+            }],
+            [/{/, {token: "open_bracket", bracket: "@open", switchTo: "@grammar_body"}]
+        ],
+        grammar_body: [
+            // unquoted terminals
+            [/[a-z0-9]/, {token: "string"}],
+            // non terminals
+            [/[A-Z]/, {token: "variable"}],
+            // explicit non terminals
+            [/<.*?>/, {token: "variable"}],
+
+            // strings
+            [/"([^"\\]|\\.)*$/, 'string.invalid' ],  // non-teminated string
+            [/"/,  { token: 'string.quote', bracket: '@open', next: '@doublequote_string' } ],
+            [/'([^'\\]|\\.)*$/, 'string.invalid' ],  // non-teminated string
+            [/'/,  { token: 'string.quote', bracket: '@open', next: '@singlequote_string' } ],
+
+            // comment
+            [/\/\/.*/, "comment"],
+            // multiline comments
+            [/\/\*/, {token: "comment", bracket: '@open', next: "multiline_comment"}],
+
+            // keywords
+            [/[a-zA-Z][\w]*/, {
+                cases: {
+                    "@keywords": "keyword",
+                }
+            }],
+
+            [/}/, {token: "close_bracket", bracket: "@close", next: "@pop"}]
         ],
     }
 }
