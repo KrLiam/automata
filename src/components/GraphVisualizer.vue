@@ -5,9 +5,13 @@
             ref="canvas"
             :style="canvasStyle"
             @mousedown="mouseDown"
-            @mouseup="mouseUp"
             @mousemove="mouseMove"
-            @mouseleave="mouseUp"
+            @mouseup="clickUp"
+            @mouseleave="clickUp"
+            @touchstart="touchStart"
+            @touchmove="touchMove"
+            @touchend="touchEnd"
+            @touchcancel="touchEnd"
         ></canvas>
         <input
             type="checkbox"
@@ -71,6 +75,7 @@ export default defineComponent({
 
         arcSliders: [] as ArcSlider[],
 
+        touch_identifier: null as number | null,
         drag: {
             type: DragType.None,
             value: null as any,
@@ -404,8 +409,20 @@ export default defineComponent({
             }
         },
 
+        touchStart(event: TouchEvent) {
+            if (event.touches.length > 1) return
+
+            const [touch] = Object.values(event.touches)
+            
+            this.clickDown([touch.clientX, touch.clientY])
+
+            this.touch_identifier = touch.identifier
+        },
         mouseDown(event: MouseEvent) {
-            let pos = this.canvas.client_to_render_pos([event.clientX, event.clientY])
+            this.clickDown([event.clientX, event.clientY])
+        },
+        clickDown(client_pos: Vector2) {
+            let pos = this.canvas.client_to_render_pos(client_pos)
             const result = this.check_mouse_collision(this.canvas.from_render_pos(pos))
 
             if (!result) {
@@ -434,15 +451,40 @@ export default defineComponent({
                 this.drag.value = slider
             }
         },
-        mouseUp(event: MouseEvent) {
+
+
+        touchEnd(event: TouchEvent) {
+            for (const touch of Object.values(event.changedTouches)) {
+                if (touch.identifier !== this.touch_identifier) continue
+
+                this.clickUp()
+                this.touch_identifier = null
+                return
+            }
+        },
+        clickUp() {
             if (this.drag.type) {
                 this.$emit("updated-graph")
                 this.drag.type = DragType.None
                 this.drag.data = {}
             }
         },
+
+
+        touchMove(event: TouchEvent) {
+            for (const touch of Object.values(event.touches)) {
+                if (touch.identifier !== this.touch_identifier) continue
+
+                this.clickMove([touch.clientX, touch.clientY])
+                event.preventDefault()
+                return
+            }
+        },
         mouseMove(event: MouseEvent) {
-            const render_pos = this.canvas.client_to_render_pos([event.clientX, event.clientY])
+            this.clickMove([event.clientX, event.clientY])
+        },
+        clickMove(client_pos: Vector2) {
+            const render_pos = this.canvas.client_to_render_pos(client_pos)
             const pos = this.canvas.from_render_pos(render_pos)
 
             if (this.drag.type) {
