@@ -154,17 +154,14 @@ export function split_state_set(state: State): Set<State> {
     return new Set(states)
 }
 
-export function join_state_set(states: Iterable<State>) {
-    const formatted: string[] = []
+export function join_state_set(states: Iterable<State>, preserve_order: boolean = false) {
+    const elements = Array.from(
+        states, state => state.includes(",") ? "(" + state + ")" : state
+    )
 
-    for (let state of states) {
-        if (state.includes(",")) {
-            state = "(" + state + ")"
-        }
-        formatted.push(state)
-    }
+    if (!preserve_order) elements.sort()
 
-    return formatted.sort().join(",")
+    return elements.join(",")
 }
 
 /**
@@ -925,8 +922,8 @@ export class FiniteAutomaton extends StateMachine<string, []> {
         const remaining: [string, string][] = [initial_state]
 
         function add_transition(origin: [State, State], symbol: string, dest: [State, State]) {
-            const origin_str = join_state_set(origin)
-            const dest_str = join_state_set(dest)
+            const origin_str = join_state_set(origin, true)
+            const dest_str = join_state_set(dest, true)
 
             transitions.push([origin_str, symbol, dest_str])
             if (!states.has(dest_str)) remaining.push(dest)
@@ -936,7 +933,7 @@ export class FiniteAutomaton extends StateMachine<string, []> {
             const origin = remaining.pop() as [string, string]
             const [origin_a, origin_b] = origin
             
-            states.add(join_state_set([origin_a, origin_b]))
+            states.add(join_state_set(origin, true))
 
             for (const symbol of alphabet) {
                 for (const [_, __, dest_a] of this.transition(origin_a, symbol, true)) {
@@ -957,14 +954,14 @@ export class FiniteAutomaton extends StateMachine<string, []> {
         const final_states: Set<string> = new Set()
         for (const final_a of this.final_states) {
             for (const final_b of automaton.final_states) {
-                const state = join_state_set([final_a, final_b])
+                const state = join_state_set([final_a, final_b], true)
                 if (states.has(state)) final_states.add(state)
             }
         }
 
         return new FiniteAutomaton(
             transitions,
-            join_state_set(initial_state),
+            join_state_set(initial_state, true),
             final_states,
             states,
             alphabet,
