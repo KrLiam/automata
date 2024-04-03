@@ -69,6 +69,7 @@ export const keywords = [
     "star",
     "reverse",
     "concatenate",
+    "minimize",
 ]
 
 export enum Patterns {
@@ -91,6 +92,7 @@ export enum Patterns {
     star = "star\\b",
     reverse = "reverse\\b",
     concatenate = "concatenate\\b",
+    minimize = "minimize\\b",
 
     opening_parens = "\\(",
     closing_parens = "\\)",
@@ -184,6 +186,7 @@ export function get_default_parsers(): { [key: string]: Parser<AstNode> } {
                 pattern("complement"),
                 pattern("star"),
                 pattern("reverse"),
+                pattern("minimize"),
             ],
             delegate("expression:primary")
         ),

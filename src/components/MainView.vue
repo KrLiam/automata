@@ -251,6 +251,12 @@ export default defineComponent({
 
                 return obj.$determinize()
             }
+            if (name === "#min") {
+                const obj = this.get_object(namespace)
+                if (!(obj instanceof FiniteObject)) return null
+
+                return obj.$minimize()
+            }
 
             const obj = this.get_object([...namespace, name])
             if (!obj) return null

@@ -14,6 +14,9 @@
             <button v-if="showViewDeterministic" @click="view_deterministic">
                 View Deterministic
             </button>
+            <button v-if="showViewMinimized" @click="view_minimized">
+                View Minimized
+            </button>
 
             <button @click="test_grammar" v-if="isSelectedGrammar && show_test_button">Test Grammar</button>
             <button @click="enumerate_grammar" v-if="isSelectedGrammar && show_test_button">Enumerate Sentences</button>
@@ -127,6 +130,12 @@ export default defineComponent({
 
             return !obj.value.is_deterministic()
         },
+        showViewMinimized(): boolean {
+            const obj = this.selected
+            if (!obj || !(obj.value instanceof FiniteAutomaton)) return false
+
+            return !obj.value.is_minimum()
+        },
         elements(): SelectElement[] {
             if (!this.selected) return []
 
@@ -152,6 +161,12 @@ export default defineComponent({
             if (!obj || !(obj.value instanceof FiniteAutomaton)) return
 
             this.select("#det")
+        },
+        view_minimized() {
+            const obj = this.selected
+            if (!obj || !(obj.value instanceof FiniteAutomaton)) return
+
+            this.select("#min")
         },
 
         test_automaton(input: string) {

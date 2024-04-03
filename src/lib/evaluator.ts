@@ -351,6 +351,12 @@ export class FiniteObject extends LangObject {
     }
 
     @object_method
+    $minimize() {
+        const automaton = this.value.minimize()
+        return new FiniteObject(automaton)
+    }
+
+    @object_method
     $star() {
         const automaton = this.value.star()
         return new FiniteObject(automaton)

@@ -21,6 +21,17 @@ export function has_intersection<T>(a: Set<T>, b: Set<T>): boolean {
     }
     return false
 }
+export function intersection<T>(a: Set<T>, b: Set<T>): Set<T> {
+    const result: Set<T> = new Set()
+
+    for (const value of a) {
+        if (b.has(value)) {
+            result.add(value)
+        }
+    }
+    
+    return result
+}
 
 export function extend<T>(container: T[] | Set<T>, values: Iterable<T>) {
     if (container instanceof Array) {
@@ -438,6 +449,20 @@ export abstract class StateMachine<R extends TransitionSymbol, A extends any[]> 
         return reached
     }
 
+    get_productive_states(): Set<State> {
+        const result: State[] = []
+
+        for (const state of this.states) {
+            const reachable = this.get_reachable(state)
+
+            if (reachable.some(state => this.final_states.has(state))) {
+                result.push(state)
+            }
+        }
+
+        return new Set(result)
+    }
+
     compute_closure(symbol: R | null = null) {
         const closure: { [state: State]: Set<State> } = {}
 
@@ -756,6 +781,118 @@ export class FiniteAutomaton extends StateMachine<string, []> {
             final_states,
             [],
             this.alphabet,
+        )
+    }
+
+    discard_useless_states() {
+        const reachable_states = this.get_reachable(this.initial_state)
+        const productive_states = this.get_productive_states()
+    
+        const unreachable_states = Array.from(this.states).filter(state => !reachable_states.includes(state))
+        const dead_states = Array.from(this.states).filter(state => !productive_states.has(state))
+
+        const discarded =  new Set([...unreachable_states, ...dead_states])
+
+        const transitions = Array.from(this.transitions()).filter(
+            ([start, _, end]) => !discarded.has(start) && !discarded.has(end)
+        )
+        const final_states = Array.from(this.final_states).filter(state => !discarded.has(state))
+        const states = Array.from(this.states).filter(state => !discarded.has(state))
+
+        return new FiniteAutomaton(
+            transitions,
+            this.initial_state,
+            final_states,
+            states,
+            this.alphabet
+        )
+    }
+
+    get_equivalent_states() {
+        let classes: Set<State>[] = [
+            new Set(Array.from(this.states).filter(state => !this.final_states.has(state))),
+            new Set(this.final_states)
+        ]
+        while (true) {
+            for (const symbol of this.alphabet) {
+
+                let next_classes_map: {[key: string]: Set<State>} = {}
+
+                for (const state of this.states) {
+                    const transitions = this.transition(state, symbol)
+
+                    let i = -1
+                    if (transitions.length) {
+                        const [_, __, end_state] = transitions[0]
+                        i = classes.findIndex(cls => cls.has(end_state))
+                    }
+
+                    const is_final = this.final_states.has(state)
+                    const key = `${i};${is_final}`
+
+                    if (!next_classes_map[key]) next_classes_map[key] = new Set()
+                    next_classes_map[key].add(state)
+                }
+
+                const next_classes = Object.values(next_classes_map)
+
+                const classes_str = join_state_set(classes.map(set => join_state_set(set)))
+                const next_classes_str = join_state_set(next_classes.map(set => join_state_set(set)))
+                if (classes_str === next_classes_str) return classes
+
+                classes = next_classes
+            }
+        }
+    }
+
+    is_minimum() {
+        if (!this.is_deterministic()) return false
+
+        const reachable_states = this.get_reachable(this.initial_state)
+        if (reachable_states.length < this.states.size) return false
+
+        const productive_states = this.get_productive_states()
+        if (productive_states.size < this.states.size) return false
+
+        const equivalent_states = this.get_equivalent_states()
+        if (equivalent_states.length < this.states.size) return false
+
+        return true
+    }
+
+    minimize(): FiniteAutomaton {
+        let automaton: FiniteAutomaton = this
+
+        if (!automaton.is_deterministic()) {
+            automaton = automaton.determinize()
+        }
+
+        automaton = automaton.discard_useless_states()
+
+        const equivalent_states = automaton.get_equivalent_states()
+        const merged_states = equivalent_states.map(set => join_state_set(set))
+
+        const state_map: {[state: State]: State} = {}
+        for (const [merged_state, state_set] of zip(merged_states, equivalent_states)) {
+            for (const state of state_set) {
+                state_map[state] = merged_state
+            }
+        }
+
+        const transitions: FiniteTransition[] = Array.from(
+            automaton.transitions(),
+            ([start, read, end]) => ([state_map[start], read, state_map[end]])
+        )
+
+        const initial_state = state_map[automaton.initial_state]
+        const final_states = Array.from(automaton.final_states, state => state_map[state])
+
+        return new FiniteAutomaton(
+            transitions,
+            initial_state,
+            final_states,
+            merged_states,
+            automaton.alphabet
         )
     }
 
