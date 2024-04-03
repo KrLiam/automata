@@ -132,7 +132,7 @@ type CommitCheckpoint = {
 export class StreamContext {
     constructor(
         public source: string,
-        public generator: Generator<Token, undefined, RegExp>,
+        public generator: Generator<Token | null, undefined, RegExp>,
         public done: boolean = false,
         public location: SourceLocation = SourceLocation.initial,
         public index: number = -1,
@@ -363,7 +363,7 @@ export class TokenStream {
         return this.tokens[this.index]
     }
 
-    *generateTokens(): Generator<Token, undefined, RegExp> {
+    *generateTokens(): Generator<Token | null, undefined, RegExp> {
         // dummy yield statement to allow for an initial send value
         let regex = yield Token.empty
 
@@ -379,7 +379,14 @@ export class TokenStream {
             }
         }
 
-        yield this.emitToken("eof")
+        while (true) {
+            if (!this.current || this.current.type !== "eof") {
+                yield this.emitToken("eof")
+            }
+            else {
+                yield null
+            }
+        }
     }
 
     [Symbol.iterator]() {
@@ -390,9 +397,10 @@ export class TokenStream {
         if (this.index + 1 < this.tokens.length) {
             this.index += 1
         } else {
-            const result = this.generator.next(this.regex)
-            this.done = result.done ? true : false
-            if (this.done) return result
+            const { value } = this.generator.next(this.regex)
+
+            this.done = value ? false : true
+            if (this.done) return {value: undefined, done:true}
         }
 
         if (this.ignoredTokens.includes(this.current.type)) {
@@ -408,14 +416,9 @@ export class TokenStream {
 
         try {
             for (let i = 0; i < n; i++) {
-                for (token of this) {
-                    if (!this.ignoredTokens.includes(token.type)) {
-                        break
-                    }
-                }
-                if (this.done) {
-                    return null
-                }
+                for (token of this) break
+                
+                if (this.done) return null
             }
         } finally {
             this.index = prevIndex
