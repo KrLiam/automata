@@ -5,9 +5,12 @@
                 <button class="return green" @click="unselect">&lt;</button>
                 <div>
                     <span class="type green text-small">{{ selectedType }}</span>
-                    <span class="name">{{ selectedName }}</span>
-                    <span class="modifier green" v-if="selectedModifier">
-                        #{{ selectedModifier }}
+                    <span
+                        v-for="(fragment, i) in pathFragments"
+                        :key="`${i}-${fragment.text}`"
+                        :class="['name', fragment.modifier ? 'modifier' : null]"
+                    >
+                        {{ fragment.text }}
                     </span>
                 </div>
             </div>
@@ -55,6 +58,11 @@ import { GrammarObject, LangObject, type_name } from "@/lib/evaluator"
 import { FiniteAutomaton, StateMachine } from "@/lib/automaton"
 import { Grammar } from "@/lib/grammar"
 
+export type PathFragment = {
+    text: string
+    modifier: boolean
+}
+
 export default defineComponent({
     components: {
         SelectMenu,
@@ -92,17 +100,32 @@ export default defineComponent({
 
             return name
         },
-        selectedName(): string {
-            if (!this.selected_path.length) return ""
+        pathFragments(): PathFragment[] {
+            if (!this.selected_path.length) return []
 
-            let path = this.selected_path
+            let path = [...this.selected_path]
+            let fragments: PathFragment[] = []
 
-            const last = path.slice(-1)[0]
-            if (last.startsWith("#")) {
-                path = path.slice(0, -1)
+            while (path.length) {
+                const i = path.findIndex(v => v.startsWith("#"))
+                const slice = i >= 0 ? path.slice(0, i) : path
+
+                if (slice.length) {
+                    const text = slice.join("/")
+                    fragments.push({
+                        text: fragments.length ? "/" + text : text,
+                        modifier: false
+                    })
+                    path.splice(0, slice.length)
+                }
+
+                if (i >= 0) {
+                    fragments.push({text: path[0], modifier: true})
+                    path.splice(0, 1)
+                }
             }
-
-            return path.join("/")
+            console.log(fragments)
+            return fragments
         },
         selectedModifier(): string {
             if (!this.selected_path.length) return ""
@@ -227,5 +250,11 @@ export default defineComponent({
 .menu-top > .return {
     padding: 0.5em 1.25em;
     font-weight: 800;
+}
+
+.menu-top .modifier {
+    display: inline-block;
+    color: var(--detail-green);
+    text-wrap: nowrap;
 }
 </style>

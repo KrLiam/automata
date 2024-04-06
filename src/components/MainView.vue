@@ -234,32 +234,44 @@ export default defineComponent({
 
             
             const obj = binding.unwrap()
-
             if (!(obj instanceof LangObject)) return null
+
+            return obj
+        },
+        apply_modifier(obj: LangObject, modifier: string): LangObject {
+            if (modifier === "#det" && obj instanceof FiniteObject) {
+                return obj.$determinize()
+            }
+
+            if (modifier === "#min" && obj instanceof FiniteObject) {
+                return obj.$minimize()
+            }
 
             return obj
         },
         get_selected_object(): LangObject | null {
             if (!this.selected.length) return new LangObject(null, this.objects)
 
-            const namespace = this.selected.slice(0, -1)
-            const name = this.selected[this.selected.length - 1]
+            let scope = this.objects
+            let obj: LangObject | null = null
 
-            if (name === "#det") {
-                const obj = this.get_object(namespace)
-                if (!(obj instanceof FiniteObject)) return null
+            for (const name of this.selected) {
+                if (name.startsWith("#") && obj instanceof LangObject) {
+                    obj = this.apply_modifier(obj, name)
+                    continue
+                }
 
-                return obj.$determinize()
+                if (!scope) return null
+
+                const binding = scope.path([name])
+                if (!binding) return null
+
+                obj = binding.unwrap()
+                if (!(obj instanceof LangObject)) return null
+
+                scope = obj.scope
             }
-            if (name === "#min") {
-                const obj = this.get_object(namespace)
-                if (!(obj instanceof FiniteObject)) return null
 
-                return obj.$minimize()
-            }
-
-            const obj = this.get_object([...namespace, name])
-            if (!obj) return null
             return obj
         },
         get_selected_automaton(): StateMachine<any, any> | null {
