@@ -188,19 +188,19 @@ export default defineComponent({
             const origin_pos = this.value.nodes[origin]
             const dest_pos = this.value.nodes[destination]
 
-            if (origin === destination) {
-                const direction = get_loop_direction(arc_pos)
-                const node_radius = this.get_node_radius(origin)
-                const length = node_radius*sin45 + this.units.arc_loop_radius*(1+sin45) - this.units.arc_width/2
+            const origin_radius = this.get_node_radius(origin)
 
-                const slider_pos = vec.sum(
-                    origin_pos,
-                    vec.prod(direction, length)
+            if (origin === destination) {
+                const arc_radius = this.units.arc_loop_radius
+                const direction = get_loop_direction(arc_pos)
+
+                const center_dist = Math.sqrt(origin_radius**2 + arc_radius**2)
+                const arc_center = vec.sum(
+                    origin_pos, vec.prod(direction, center_dist)
                 )
-                const text_pos = vec.sum(
-                    slider_pos,
-                    vec.prod(direction, this.units.arc_label_spacing)
-                )
+                const slider_pos = vec.sum(arc_center, vec.prod(direction, this.units.arc_loop_radius))
+                const text_pos = vec.sum(slider_pos, vec.prod(direction, this.units.arc_label_spacing))
+
                 return {slider_pos, text_pos}
             }
 
@@ -230,8 +230,6 @@ export default defineComponent({
             return {slider_pos, text_pos}
         },
         draw() {
-            const sin45 = Math.sin(Math.PI/4)
-
             // arcs
             const arrow_width = this.units.arc_arrow_width
             const arrow_height = this.units.arc_arrow_height
@@ -247,21 +245,36 @@ export default defineComponent({
                 if (origin === destination) {
                     const arc_radius = this.units.arc_loop_radius
                     const direction = get_loop_direction(arc_pos)
-                    const direction_angle = vec.angle(vec.negated_y(direction))
 
+                    // the arc circle and the node circle intersection forms a
+                    // 90 degrees angle. therefore the line segment that connects the centers
+                    // of both circles is the hypothenuse of the right triangle which catheti
+                    // are the radii of the two circles
                     const center_dist = Math.sqrt(origin_radius**2 + arc_radius**2)
-                    const pos = vec.sum(
+                    const arc_center = vec.sum(
                         origin_pos, vec.prod(direction, center_dist)
                     )
 
                     const h = origin_radius*arc_radius / center_dist
-                    const angle = Math.asin(h / origin_radius)
-
-                    const arrow_direction = vec.rotated(direction, angle)
-                    const pos1 = vec.sum(
-                        origin_pos, vec.prod(arrow_direction, origin_radius)
-                    )
+                    const alpha = Math.asin(h / origin_radius)
                     
+                    // vector that points from the arc center to the tip of the arrow triangle
+                    const center_to_tip_direction = vec.rotated(direction, alpha + Math.PI/2)
+                    // vector that points from the arc center to the start of the arc curve
+                    const center_to_curve_start_direction = vec.rotated(direction, -alpha - Math.PI/2)
+
+                    // -(arrow_height / 2piR) * 2pi = -arrow_height / R
+                    const tip_to_end_angle_offset = -arrow_height / arc_radius
+                    const center_to_arrow_end_direction = vec.rotated(center_to_tip_direction, tip_to_end_angle_offset)
+
+                    // the direction of the arrow triangle
+                    const arrow_direction = vec.normalized(
+                        vec.diff(center_to_arrow_end_direction, center_to_tip_direction)
+                    )
+
+                    const pos1 = vec.sum(
+                        arc_center, vec.prod(center_to_tip_direction, arc_radius)
+                    )
                     const arrow_width_direction = vec.prod(
                         vec.rotated_right(arrow_direction), arrow_width
                     )
@@ -269,9 +282,12 @@ export default defineComponent({
                     const pos2 = vec.sum(arrow_end, arrow_width_direction)
                     const pos3 = vec.sum(arrow_end, vec.negated(arrow_width_direction))
 
-                    const arc_range = normalize_angle_range([direction_angle - 0.755*Math.PI, direction_angle + 0.6*Math.PI])
+                    const arc_range = normalize_angle_range([
+                        vec.angle(vec.negated_y(center_to_curve_start_direction)) - 0.025,
+                        vec.angle(vec.negated_y(center_to_arrow_end_direction)) + 0.05 // small increment for seamless connection with the arrow head
+                    ])
                     this.canvas.circle({
-                        pos, radius: arc_radius, width: this.units.arc_width, color, range: arc_range
+                        pos: arc_center, radius: arc_radius, width: this.units.arc_width, color, range: arc_range
                     })
                     this.canvas.triangle({pos1, pos2, pos3, color})
                     continue
