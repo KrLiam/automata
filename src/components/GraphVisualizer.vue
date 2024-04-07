@@ -95,6 +95,8 @@ export default defineComponent({
             node_radius: 20,
             node_ring_radius: 25,
             node_ring_width: 2.5,
+            node_initial_arrow_width: 12,
+            node_initial_arrow_height: 8,
             arc_width: 3,
             arc_arrow_width: 6,
             arc_arrow_height: 10,
@@ -337,13 +339,16 @@ export default defineComponent({
 
             // initial node
             if (this.value.initial) {
+                const node_pos = this.value.nodes[this.value.initial]
                 const node_radius = this.get_node_radius(this.value.initial)
-                const initial_pos = this.value.nodes[this.value.initial]
-                const initial_triangle = vec.sum(initial_pos, [-node_radius, 0])
+                const width = this.units.node_initial_arrow_width
+                const height = this.units.node_initial_arrow_height
+
+                const pos1 = vec.sum(node_pos, [-node_radius, 0])
                 this.canvas.triangle({
-                    pos1: initial_triangle,
-                    pos2: vec.sum(initial_triangle, [-15, 10]),
-                    pos3: vec.sum(initial_triangle, [-15, -10]),
+                    pos1,
+                    pos2: vec.sum(pos1, [-width, height]),
+                    pos3: vec.sum(pos1, [-width, -height]),
                     color: "#ffffff"
                 })
             }

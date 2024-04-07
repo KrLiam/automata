@@ -503,6 +503,8 @@ export interface GraphUnits {
     node_radius: number
     node_ring_radius: number
     node_ring_width: number
+    node_initial_arrow_width: number
+    node_initial_arrow_height: number
     arc_width: number
     arc_arrow_width: number
     arc_arrow_height: number
