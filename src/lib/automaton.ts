@@ -1007,14 +1007,17 @@ export class FiniteAutomaton extends StateMachine<string, []> {
     }
 
     star() {
+        const { i: new_initial } = make_state_conversion_map(this.states, ["i"])
+
         const transitions: FiniteTransition[] = Array.from(
-            this.final_states, origin => [origin, Epsilon, this.initial_state]
+            [...this.final_states, new_initial],
+            origin => [origin, Epsilon, this.initial_state] as FiniteTransition
         )
 
         return new FiniteAutomaton(
-            [...this.transitions(), ... transitions],
-            this.initial_state,
-            this.final_states,
+            [...this.transitions(), ...transitions],
+            new_initial,
+            [...this.final_states, new_initial],
             this.states,
             this.alphabet
         )
