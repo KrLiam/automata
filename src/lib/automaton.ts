@@ -813,35 +813,41 @@ export class FiniteAutomaton extends StateMachine<string, []> {
             new Set(Array.from(this.states).filter(state => !this.final_states.has(state))),
             new Set(this.final_states)
         ]
+        const visited: string[] = []
+
         while (true) {
-            for (const symbol of this.alphabet) {
+            let next_classes_map: {[key: string]: Set<State>} = {}
 
-                let next_classes_map: {[key: string]: Set<State>} = {}
+            for (const state of this.states) {
+                const dest_classes = []
 
-                for (const state of this.states) {
+                for (const symbol of this.alphabet) {
                     const transitions = this.transition(state, symbol)
-
+    
                     let i = -1
                     if (transitions.length) {
                         const [_, __, end_state] = transitions[0]
                         i = classes.findIndex(cls => cls.has(end_state))
                     }
 
-                    const is_final = this.final_states.has(state)
-                    const key = `${i};${is_final}`
-
-                    if (!next_classes_map[key]) next_classes_map[key] = new Set()
-                    next_classes_map[key].add(state)
+                    dest_classes.push(i)
                 }
 
-                const next_classes = Object.values(next_classes_map)
+                const is_final = this.final_states.has(state)
+                const key = [...dest_classes, is_final].join(";")
 
-                const classes_str = join_state_set(classes.map(set => join_state_set(set)))
-                const next_classes_str = join_state_set(next_classes.map(set => join_state_set(set)))
-                if (classes_str === next_classes_str) return classes
-
-                classes = next_classes
+                if (!next_classes_map[key]) next_classes_map[key] = new Set()
+                next_classes_map[key].add(state)
             }
+
+            classes = Object.values(next_classes_map)
+
+            // turn the classes object into a hashable format to check for
+            // equality with already visited class states
+            const classes_str = join_state_set(classes.map(set => join_state_set(set)))
+
+            if (visited.includes(classes_str)) return classes
+            visited.push(classes_str)
         }
     }
 
