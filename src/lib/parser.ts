@@ -106,6 +106,10 @@ export enum Patterns {
     comma = ",",
     quote = '"',
     separation_bar = "\\|",
+    asterisk = "\\*",
+    ampersand = "&",
+    dot = "\\.",
+    tilde = "~",
     singlequote = "'",
     comment = "//.*",
     multiline_comment = "/\\*[\\s\\S]*?\\*/",
@@ -170,25 +174,39 @@ export function get_default_parsers(): { [key: string]: Parser<AstNode> } {
 
         "expression": delegate("expression:union"),
         "expression:union": new BinaryParser(
-            pattern("union"), delegate("expression:intersection")
+            [pattern("union"), pattern("separation_bar")],
+            delegate("expression:intersection"),
+            {separation_bar: "union"}
         ),
         "expression:intersection": new BinaryParser(
-            pattern("intersection"), delegate("expression:concatenate")
+            [pattern("intersection"), pattern("ampersand")],
+            delegate("expression:concatenate"),
+            {ampersand: "intersection"}
         ),
         "expression:concatenate": new BinaryParser(
-            pattern("concatenate"), delegate("expression:unary")
+            [pattern("concatenate"), pattern("dot")],
+            delegate("expression:unary"),
+            {dot: "concatenate"}
         ),
         "expression:unary": new UnaryParser(
             [
                 pattern("complement"),
+                pattern("tilde"),
                 pattern("determinize"),
                 pattern("reenumerate"),
-                pattern("complement"),
                 pattern("star"),
                 pattern("reverse"),
                 pattern("minimize"),
             ],
-            delegate("expression:primary")
+            delegate("expression:star"),
+            false,
+            {tilde: "complement"}
+        ),
+        "expression:star": new UnaryParser(
+            [pattern("asterisk")],
+            delegate("expression:primary"),
+            true,
+            {asterisk: "star"}
         ),
         "expression:primary": new CallParser(parse_primary_expression),
 
@@ -605,65 +623,64 @@ export class ListParser<T extends AstNode> {
 
 
 export class BinaryParser {
-    operator: string
     parser: Parser<AstExpression>
-
+    
     patterns: {[name: string]: string}
+    operation_map: {[pattern_name: string]: string}
 
-    constructor(operator: TokenPattern, parser: Parser<AstExpression>) {
+    constructor(
+        operators: TokenPattern[],
+        parser: Parser<AstExpression>,
+        operation_map: {[pattern_name: string]: string} = {}
+    ) {
         this.parser = parser;
         
-        const [name, pattern] = operator
-        this.operator = name
         this.patterns = {}
-        this.patterns[name] = pattern
-    }
+        this.operation_map = {...operation_map}
 
-    parse_operands(stream: TokenStream): AstExpression[] {
-        const left = this.parser.parse(stream)
-
-        const keyword = stream.syntax(this.patterns, () => stream.get(this.operator))
-        if (!keyword) return [left]
-
-        return [left, ...this.parse_operands(stream)]
+        for (const operator of operators) {
+            const [name, pattern] = operator
+            this.patterns[name] = pattern
+        }
     }
 
     parse(stream: TokenStream): AstExpression {
-        let [left, ...operands] = this.parse_operands(stream)
+        const left = this.parser.parse(stream)
 
-        if (!operands.length) return left
-
-        let right: AstExpression
-        [right, ...operands] = operands
-
-        let result = set_location(
-            new AstBinary({op: this.operator, left, right}),
-            left,
-            right
+        const keyword = stream.syntax(
+            this.patterns,
+            () => stream.get(...Object.keys(this.patterns))
         )
-        for (const operand of operands) {
-            result = set_location(
-                new AstBinary({op: this.operator, left: result, right: operand}),
-                result,
-                operand
-            )
-        }
-        return result
+        if (!keyword) return left
+
+        const op = this.operation_map[keyword.type] ?? keyword.type
+        const right = this.parse(stream)
+
+        return set_location(new AstBinary({op, left, right,}), left, right)
     }
 }
 
 
 export class UnaryParser {
-    operators: string[]
     parser: Parser<AstExpression>
-
+    postfix: boolean
+    
+    operators: string[]
     patterns: {[name: string]: string}
+    operation_map: {[pattern_name: string]: string}
 
-    constructor(operators: TokenPattern[], parser: Parser<AstExpression>) {
+    constructor(
+        operators: TokenPattern[],
+        parser: Parser<AstExpression>,
+        postfix: boolean = false,
+        operation_map: {[pattern_name: string]: string} = {}
+    ) {
         this.parser = parser;
+        this.postfix = postfix
         
         this.operators = []
         this.patterns = {}
+        this.operation_map = {...operation_map}
 
         for (const operator of operators) {
             const [name, pattern] = operator
@@ -674,13 +691,25 @@ export class UnaryParser {
     }
     
     parse(stream: TokenStream): AstExpression {
-        const keyword = stream.syntax(this.patterns, () => stream.get(...this.operators))
-        if (!keyword) return this.parser.parse(stream)
+        let keyword: Token | null, value: AstExpression
+        
+        if (this.postfix) {
+            value = this.parser.parse(stream)
 
-        const value = this.parse(stream)
+            keyword = stream.syntax(this.patterns, () => stream.get(...this.operators))
+            if (!keyword) return value
+        }
+        else {
+            keyword = stream.syntax(this.patterns, () => stream.get(...this.operators))
+            if (!keyword) return this.parser.parse(stream)
+    
+            value = this.parse(stream)
+        }
 
+        const op = this.operation_map[keyword.type] ?? keyword.type
+        
         return set_location(
-            new AstUnary({op: keyword.type, value}),
+            new AstUnary({op, value}),
             keyword,
             value
         )
