@@ -15,6 +15,11 @@ import {
     AstPrint,
     AstPushdownAutomaton,
     AstPushdownTransition,
+    AstRegex,
+    AstRegexBinary,
+    AstRegexChildren,
+    AstRegexLiteral,
+    AstRegexUnary,
     AstRoot,
     AstTest,
     AstTransition,
@@ -551,6 +556,81 @@ export class Evaluator extends Visitor<AstNode, Scope, any> {
         )
 
         return method()
+    }
+
+    @rule(AstRegex)
+    regex(node: AstRegex, scope: Scope) {
+        const automaton = this.invoke(node.children, scope) as FiniteObject
+
+        return automaton.$minimize().$reenumerate()
+    }
+
+    @rule(AstRegexChildren)
+    regex_children(node: AstRegexChildren, scope: Scope) {
+        let automaton = this.invoke(new AstRegexLiteral({value: ""}), scope) as FiniteObject
+
+        for (const fragment of node.values) {
+            const value = this.invoke(fragment, scope) as FiniteObject
+            automaton = automaton.$concatenate(value) as FiniteObject
+        }
+
+        return automaton
+    }
+
+    @rule(AstRegexUnary)
+    regex_unary(node: AstRegexUnary, scope: Scope) {
+        const value = this.invoke(node.value, scope) as FiniteObject
+
+        const alphabet = value.value.alphabet
+        const empty = new FiniteObject(new FiniteAutomaton([], "q0", ["q0"], [], alphabet))
+    
+        if (node.op === "zero_or_more") {
+            return value.$star()
+        }
+            
+        if (node.op === "one_or_more") {
+            const value_star = value.$star()
+            return value_star.$intersection(empty.$complement())
+        }
+
+        if (node.op === "optional") {
+            return value.$union(empty)
+        }
+        
+        throw set_location(
+            new EvaluationError(`Unknown regex unary operation '${node.op}'.`),
+            node
+        )
+    }
+
+    @rule(AstRegexBinary)
+    regex_binary(node: AstRegexBinary, scope: Scope) {
+        const left = this.invoke(node.left, scope) as FiniteObject
+        const right = this.invoke(node.right, scope) as FiniteObject
+
+        if (node.op === "alternative") return left.$union(right)
+
+        throw set_location(
+            new EvaluationError(`Unknown regex binary operation '${node.op}'.`),
+            node
+        )
+    }
+
+    @rule(AstRegexLiteral)
+    regex_literal(node: AstRegexLiteral, scope: Scope) {
+        const symbols = node.value.split("")
+
+        const initial = "q0"
+        const transitions: FiniteTransition[] = []
+
+        for (let i = 0; i < symbols.length; i++) {
+            transitions.push([`q${i}`, symbols[i], `q${i+1}`])
+        }
+
+        const final = `q${symbols.length}`
+
+        const automaton = new FiniteAutomaton(transitions, initial, [final])
+        return new FiniteObject(automaton)
     }
 
 

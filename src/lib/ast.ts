@@ -96,7 +96,7 @@ export class AstIdentifier extends AstExpression {
 export type AstListArgs<T> = AstNodeArgs & {
     values: T[]
 }
-export class AstList<T> extends AstNode {
+export class AstList<T> extends AstExpression {
     values: T[]
 
     constructor({ values, ...args }: AstListArgs<T>) {
@@ -114,6 +114,71 @@ export class AstStateList extends AstList<AstIdentifier> {}
 export type AstInitialStateArgs = AstNodeArgs & {
     value: AstIdentifier
 }
+
+
+export type AstRegexArgs = AstNodeArgs & {
+    children: AstRegexFragment
+}
+export class AstRegex extends AstNode {
+    children: AstRegexFragment
+
+    constructor({children, ...args}: AstRegexArgs) {
+        super(args)
+        this.children = children
+    }
+}
+
+export type AstRegexFragment = AstRegexChildren | AstRegexLiteral | AstRegexUnary | AstRegexBinary
+
+export class AstRegexChildren extends AstList<AstRegexFragment> {}
+
+export type AstRegexLiteralArgs = AstNodeArgs & {
+    value: string
+}
+export class AstRegexLiteral extends AstNode {
+    value: string
+
+    constructor({value, ...args}: AstRegexLiteralArgs) {
+        super(args)
+        this.value = value
+    }
+}
+
+export type AstRegexUnaryArgs = AstNodeArgs & {
+    value: AstRegexFragment
+    op: string
+}
+export class AstRegexUnary extends AstNode {
+    value: AstRegexFragment
+    op: string
+
+    constructor({value, op, ...args}: AstRegexUnaryArgs) {
+        super(args)
+        this.value = value
+        this.op = op
+    }
+}
+
+export type AstRegexBinaryArgs = AstNodeArgs & {
+    left: AstRegexFragment
+    right: AstRegexFragment
+    op: string
+}
+export class AstRegexBinary extends AstNode {
+    left: AstRegexFragment
+    right: AstRegexFragment
+    op: string
+
+    constructor({left, right, op, ...args}: AstRegexBinaryArgs) {
+        super(args)
+        this.left = left
+        this.right = right
+        this.op = op
+    }
+}
+
+
+
 export class AstInitialState extends AstNode {
     value: AstIdentifier
 

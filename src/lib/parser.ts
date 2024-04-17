@@ -43,6 +43,12 @@ import {
     AstGrammarExpression,
     AstGrammarRule,
     AstGrammarAlternative,
+    AstRegex,
+    AstRegexChildren,
+    AstRegexLiteral,
+    AstRegexUnary,
+    type AstRegexFragment,
+    AstRegexBinary,
 } from "./ast"
 import { Token, set_location } from "./tokenstream"
 import { ParseError } from "./error"
@@ -100,16 +106,21 @@ export enum Patterns {
     closing_bracket = "\\}",
     opening_square_bracket = "\\[",
     closing_square_bracket = "\\]",
+    opening_angle_bracket = "<",
+    closing_angle_bracket = ">",
+
     semicolon = ";",
     colon = ":",
     equals = "=",
     comma = ",",
     quote = '"',
-    separation_bar = "\\|",
+    vertical_bar = "\\|",
     asterisk = "\\*",
+    plus = "\\+",
     ampersand = "&",
     dot = "\\.",
     tilde = "~",
+    question_mark = "\\?",
     singlequote = "'",
     comment = "//.*",
     multiline_comment = "/\\*[\\s\\S]*?\\*/",
@@ -129,7 +140,13 @@ export function get_default_parsers(): { [key: string]: Parser<AstNode> } {
     return {
         identifier: new CallParser(parse_identifier),
         state: delegate("identifier"),
-        state_list: new ListParser(delegate("state"), AstStateList),
+        state_list: new ListParser(
+            delegate("state"),
+            AstStateList,
+            null,
+            null,
+            pattern("comma")
+        ),
         char_condition: new CallParser(parse_char_condition),
         string: new CallParser(parse_string),
 
@@ -174,9 +191,9 @@ export function get_default_parsers(): { [key: string]: Parser<AstNode> } {
 
         "expression": delegate("expression:union"),
         "expression:union": new BinaryParser(
-            [pattern("union"), pattern("separation_bar")],
+            [pattern("union"), pattern("vertical_bar")],
             delegate("expression:intersection"),
-            {separation_bar: "union"}
+            {vertical_bar: "union"}
         ),
         "expression:intersection": new BinaryParser(
             [pattern("intersection"), pattern("ampersand")],
@@ -210,11 +227,23 @@ export function get_default_parsers(): { [key: string]: Parser<AstNode> } {
         ),
         "expression:primary": new CallParser(parse_primary_expression),
 
+        "regex": new CallParser(parse_regex),
+        "regex:alternative": new CallParser(parse_regex_alternative),
+        "regex:sequence": new CallParser(parse_regex_sequence),
+        "regex:unary": new CallParser(parse_regex_unary),
+        "regex:primary": new ChooseParser(
+            option(pattern("opening_parens"), delegate("regex:parens")),
+            option(null, delegate("regex:literal")),
+        ),
+        "regex:parens": new CallParser(parse_regex_parens),
+        "regex:literal": new CallParser(parse_regex_literal),
+
         "expression:list:string": new ListParser(
             delegate("string"),
             AstList<AstString>,
             pattern("opening_square_bracket"),
             pattern("closing_square_bracket"),
+            pattern("comma"),
         ),
 
         turing: new CallParser(parse_turing_machine),
@@ -224,6 +253,7 @@ export function get_default_parsers(): { [key: string]: Parser<AstNode> } {
             AstTapeList,
             pattern("opening_square_bracket"),
             pattern("closing_square_bracket"),
+            pattern("comma"),
         ),
         "turing:root": new RootParser(
             delegate("turing:statement"),
@@ -245,6 +275,7 @@ export function get_default_parsers(): { [key: string]: Parser<AstNode> } {
             AstTuringCharList,
             pattern("opening_square_bracket"),
             pattern("closing_square_bracket"),
+            pattern("comma"),
         ),
         "turing:chars:single": new AlternativeParser([
             delegate("turing:named_char"),
@@ -265,6 +296,7 @@ export function get_default_parsers(): { [key: string]: Parser<AstNode> } {
             AstTuringShiftCharList,
             pattern("opening_square_bracket"),
             pattern("closing_square_bracket"),
+            pattern("comma")
         ),
         "turing:shift:single": new AlternativeParser([
             delegate("turing:shift:named_char"),
@@ -353,12 +385,12 @@ export interface ChoosableParser extends Parser<AstNode> {
 }
 
 export function option(
-    pattern: TokenPattern,
+    pattern: TokenPattern | null,
     parser: Parser<AstNode>,
     consume: boolean = false,
 ): ChoosableParser {
     return {
-        prefix: pattern,
+        prefix: pattern ?? ["any", "."],
         consume: consume,
         parse: parser.parse.bind(parser),
     }
@@ -531,7 +563,8 @@ export class ListParser<T extends AstNode> {
 
     opening_pattern: string | null
     closing_pattern: string | null
-    separator_pattern: string
+    separator_pattern: string | null
+    allow_single_element: boolean
     patterns: { [name: string]: string }
 
     constructor(
@@ -539,10 +572,12 @@ export class ListParser<T extends AstNode> {
         cls: new (...args: any) => AstList<T>,
         opening: TokenPattern | null = null,
         closing: TokenPattern | null = null,
-        separator: TokenPattern = pattern("comma"),
+        separator: TokenPattern | null = pattern("comma"),
+        allow_single_element: boolean = true,
     ) {
         this.parser = parser
         this.cls = cls
+        this.allow_single_element = allow_single_element
         this.patterns = {}
 
         if (opening instanceof Array) {
@@ -577,9 +612,15 @@ export class ListParser<T extends AstNode> {
         const values: AstNode[] = []
 
         return stream.syntax(this.patterns, () => {
-            const intercepted = stream.intercept(["newline", this.separator_pattern])
+            const intercepted = stream.intercept([
+                "newline",
+                ...(this.separator_pattern ? [this.separator_pattern] : [])
+            ])
 
-            if (this.opening_pattern && !stream.get(this.opening_pattern)) {
+            if (
+                this.opening_pattern && !stream.get(this.opening_pattern)
+                && this.allow_single_element
+            ) {
                 const element = this.parser.parse(stream)
                 const node = new this.cls({ values: [element] })
                 return set_location(node, element)
@@ -596,13 +637,15 @@ export class ListParser<T extends AstNode> {
                 const node = this.parser.parse(stream)
                 values.push(node)
 
-                const separator = intercepted.get(this.separator_pattern)
-                if (!separator) {
-                    if (this.closing_pattern) {
-                        const end_token = stream.expect(this.closing_pattern)
-                        end_location = end_token.endLocation
+                if (this.separator_pattern) {
+                    const separator = intercepted.get(this.separator_pattern)
+                    if (!separator) {
+                        if (this.closing_pattern) {
+                            const end_token = stream.expect(this.closing_pattern)
+                            end_location = end_token.endLocation
+                        }
+                        break
                     }
-                    break
                 }
 
                 token = stream.peek()
@@ -1027,17 +1070,110 @@ export function parse_turing_chars(stream: TokenStream): AstTuringCharList {
 }
 
 export function parse_primary_expression(stream: TokenStream) {
-    const parens = stream.get("opening_parens")
+    const token = stream.peek()
 
-    if (parens) {
+    if (token?.match("opening_parens")) {
+        stream.expect()
         const expression = delegate("expression", stream)
         const closing_parens = stream.expect("closing_parens")
 
-        return set_location(expression, parens, closing_parens)
+        return set_location(expression, token, closing_parens)
+    }
+
+    if (token?.match("opening_angle_bracket")) {
+        return delegate("regex", stream)
     }
 
     return delegate("identifier", stream)
 }
+
+
+export function parse_regex(stream: TokenStream): AstRegex {
+    const open_bracket = stream.expect("opening_angle_bracket")
+
+    const children = stream.ignore(["whitespace"], () => 
+        delegate("regex:alternative", stream) as AstRegexFragment
+    )
+
+    const close_bracket = stream.expect("closing_angle_bracket")
+
+    return set_location(new AstRegex({children}), open_bracket, close_bracket)
+}
+
+export function parse_regex_alternative(stream: TokenStream): AstRegexFragment {
+    const left = delegate("regex:sequence", stream) as AstRegexFragment
+
+    const operator = stream.get("vertical_bar")
+    if (!operator) return left
+    
+    const right = parse_regex_alternative(stream)
+
+    return set_location(
+        new AstRegexBinary({op: "alternative", left, right}),
+        left,
+        right
+    )
+}
+
+export function parse_regex_sequence(stream: TokenStream) {
+    const closing_patterns = ["vertical_bar", "closing_angle_bracket", "closing_parens"]
+
+    const values: AstRegexFragment[] = []
+
+    stream.peek()
+    const location = stream.location
+
+    while (true) {
+        const token = stream.peek()
+        if (token && closing_patterns.includes(token.type)) break
+        
+        const value = delegate("regex:unary", stream) as AstRegexFragment
+        values.push(value)
+    }
+
+    if (values.length === 1) return values[0]
+
+    const end_location = values[values.length - 1] ?? location
+
+    return set_location(
+        new AstRegexChildren({values: values}), location, end_location
+    )
+}
+
+export function parse_regex_unary(stream: TokenStream) {
+    const operations: {[pattern: string]: string} = {
+        plus: "one_or_more",
+        asterisk: "zero_or_more",
+        question_mark: "optional",
+    }
+    
+    const value = delegate("regex:primary", stream) as AstRegexFragment
+
+    const operator = stream.get("plus", "asterisk", "question_mark")
+    if (!operator) return value
+
+    return set_location(
+        new AstRegexUnary({op: operations[operator.type], value}),
+        value,
+        operator
+    )
+}
+
+export function parse_regex_parens(stream: TokenStream) {
+    stream.expect("opening_parens")
+    const value = delegate("regex:alternative", stream)
+    stream.expect("closing_parens")
+
+    return value
+}
+
+export function parse_regex_literal(stream: TokenStream) {
+    return stream.syntax({regex_literal: "[^\\s()*+?|]"}, () => {
+        const token = stream.expect("regex_literal")
+        return set_location(new AstRegexLiteral({value: token.value}), token)
+    })
+}
+
 
 export function parse_grammar(stream: TokenStream) {
     const keyword = stream.get("grammar")
@@ -1070,7 +1206,7 @@ export function parse_grammar_alternative(stream: TokenStream) {
         const value = delegate("grammar:sequence", stream) as AstGrammarExpression
         values.push(value)
 
-        if (!stream.get("separation_bar")) break
+        if (!stream.get("vertical_bar")) break
     }
 
     return set_location(new AstGrammarAlternative({values}), values[0], values[values.length - 1])
