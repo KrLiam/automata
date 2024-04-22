@@ -52,7 +52,7 @@ import {
 } from "./ast"
 import { Token, set_location } from "./tokenstream"
 import { ParseError } from "./error"
-import type { TuringShiftChar } from "./automaton"
+import { zip, type TuringShiftChar } from "./automaton"
 import { NonTerminal, Terminal, type SentencialSequence } from "./grammar"
 
 export const keywords = [
@@ -688,18 +688,31 @@ export class BinaryParser {
     }
 
     parse(stream: TokenStream): AstExpression {
-        const left = this.parser.parse(stream)
+        const operands: AstExpression[] = []
+        const operators: string[] = []
 
-        const keyword = stream.syntax(
-            this.patterns,
-            () => stream.get(...Object.keys(this.patterns))
-        )
-        if (!keyword) return left
+        while (true) {
+            const value = this.parser.parse(stream)
+            operands.push(value)
+    
+            const keyword = stream.syntax(
+                this.patterns,
+                () => stream.get(...Object.keys(this.patterns))
+            )
+            if (!keyword) break
 
-        const op = this.operation_map[keyword.type] ?? keyword.type
-        const right = this.parse(stream)
+            const op = this.operation_map[keyword.type] ?? keyword.type
+            operators.push(op)
+        }
 
-        return set_location(new AstBinary({op, left, right,}), left, right)
+        if (operands.length === 1) return operands[0]
+
+        let node = operands[0]
+        for (let [right, op] of zip(operands.slice(1), operators)) {
+            node = set_location(new AstBinary({op, left: node, right,}), node, right)
+        }
+
+        return node
     }
 }
 
