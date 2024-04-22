@@ -12,6 +12,7 @@
             @touchmove="touchMove"
             @touchend="touchEnd"
             @touchcancel="touchEnd"
+            @wheel="wheel"
         ></canvas>
         <input
             type="checkbox"
@@ -37,7 +38,7 @@ defineEmits<{
 </script>
 
 <script lang="ts">
-import { type GraphData, type Vector2, Canvas, vec, get_loop_direction, normalize_angle_range, type GraphArc, get_curved_arc, type GraphUnits, type GraphStyle, type NodeStyle, type ArcStyle, TextAlign } from "../lib/graph"
+import { type GraphData, type Vector2, Canvas, vec, get_loop_direction, normalize_angle_range, type GraphArc, get_curved_arc, type GraphUnits, type GraphStyle, type NodeStyle, type ArcStyle, TextAlign, lerp } from "../lib/graph"
 import { defineComponent, defineProps, withDefaults } from "vue"
 
 export interface Visualizer {
@@ -83,6 +84,10 @@ export default defineComponent({
             base: [0, 0] as Vector2,
             data: {} as any,
         },
+        zoom_level: 0,
+        min_zoom_level: 0.25,
+        max_zoom_level: 4,
+        zoom_steps: 8,
 
         hover: {
             pos: null as Vector2 | null,
@@ -120,6 +125,14 @@ export default defineComponent({
 
             return style
         },
+        zoom_factor() {
+            if (this.zoom_level < 0) {
+                const step = (1 - this.min_zoom_level) / this.zoom_steps
+                return Math.max(1 + step * this.zoom_level, this.min_zoom_level)
+            }
+
+            return Math.min(1 + this.zoom_level, this.max_zoom_level)
+        },
     },
     mounted() {
         this.canvas = new Canvas(this.$refs.canvas as HTMLCanvasElement, {
@@ -148,14 +161,15 @@ export default defineComponent({
             const dpi = window.devicePixelRatio
 
             this.canvas.resize(rect.width * dpi, rect.height * dpi)
-            this.canvas.scale(dpi)
+            this.canvas.scale(dpi * this.zoom_factor)
         },
         focus(pos: Vector2) {
             const {width, height} = this.canvas.rect
+            const size: Vector2 = [width, height]
+            const offset = vec.quot(vec.quot(size, 2), this.canvas.scale_value)
 
-            this.canvas.offset(vec.diff(pos, [width/2, height/2]))
+            this.canvas.offset(vec.diff(pos, offset))
         },
-
         focus_center() {
             const center_pos = vec.center(...Object.values(this.value.nodes))
             this.focus(center_pos)
@@ -437,6 +451,27 @@ export default defineComponent({
 
                 this.arcSliders.push({arc: key, pos: slider_pos})
             }
+        },
+
+        wheel(event: WheelEvent) {
+            event.preventDefault()
+            
+            this.zoom_level += -event.deltaY / 100
+   
+            const prev_mouse_pos = this.canvas.client_to_pos([event.clientX, event.clientY])
+            
+            this.resize()
+            
+            const size: Vector2 = [this.canvas.rect.width, this.canvas.rect.height]
+            const center = this.canvas.from_render_pos(vec.quot(size, 2))
+            
+            const mouse_pos = this.canvas.client_to_pos([event.clientX, event.clientY])
+            const delta = vec.diff(prev_mouse_pos, mouse_pos)
+            
+            this.focus(vec.sum(center, delta))
+            this.autofocus = false
+            
+            console.log(this.zoom_factor)
         },
 
         touchStart(event: TouchEvent) {
