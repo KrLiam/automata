@@ -38,7 +38,7 @@ defineEmits<{
 </script>
 
 <script lang="ts">
-import { type GraphData, type Vector2, Canvas, vec, get_loop_direction, normalize_angle_range, type GraphArc, get_curved_arc, type GraphUnits, type GraphStyle, type NodeStyle, type ArcStyle, TextAlign, lerp } from "../lib/graph"
+import { type GraphData, type Vector2, Canvas, vec, get_loop_direction, normalize_angle_range, type GraphArc, get_curved_arc, type GraphUnits, type GraphStyle, type NodeStyle, type ArcStyle, TextAlign, lerp, clamp } from "../lib/graph"
 import { defineComponent, defineProps, withDefaults } from "vue"
 
 export interface Visualizer {
@@ -87,7 +87,7 @@ export default defineComponent({
         zoom_level: 0,
         min_zoom_level: 0.25,
         max_zoom_level: 4,
-        zoom_steps: 8,
+        zoom_step: 0.005,
 
         hover: {
             pos: null as Vector2 | null,
@@ -126,12 +126,10 @@ export default defineComponent({
             return style
         },
         zoom_factor() {
-            if (this.zoom_level < 0) {
-                const step = (1 - this.min_zoom_level) / this.zoom_steps
-                return Math.max(1 + step * this.zoom_level, this.min_zoom_level)
+            if (this.zoom_level > 0) {
+                return lerp(1, this.max_zoom_level, this.zoom_level)
             }
-
-            return Math.min(1 + this.zoom_level, this.max_zoom_level)
+            return lerp(1, this.min_zoom_level, Math.abs(this.zoom_level))
         },
     },
     mounted() {
@@ -456,7 +454,8 @@ export default defineComponent({
         wheel(event: WheelEvent) {
             event.preventDefault()
             
-            this.zoom_level += -event.deltaY / 100
+            const zoom_delta = -event.deltaY * this.zoom_step
+            this.zoom_level = clamp(this.zoom_level + zoom_delta, -1, 1)
    
             const prev_mouse_pos = this.canvas.client_to_pos([event.clientX, event.clientY])
             
@@ -470,8 +469,6 @@ export default defineComponent({
             
             this.focus(vec.sum(center, delta))
             this.autofocus = false
-            
-            console.log(this.zoom_factor)
         },
 
         touchStart(event: TouchEvent) {

@@ -14,6 +14,10 @@ export function lerp(a: number, b: number, value: number): number {
     return a * (1 - value) + b * value
 }
 
+export function clamp(value: number, min: number, max: number): number {
+    return Math.max(min, Math.min(value, max))
+}
+
 export type Vector2 = [number, number]
 
 export const vec = {
