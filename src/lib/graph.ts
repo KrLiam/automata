@@ -550,10 +550,11 @@ export function make_pushdown_label(transitions: PushdownTransition[]): string[]
     for (const transition of transitions) {
         const [_, [read, ...pop], __, push] = transition
 
+        const read_label = stringify_char_list([read])
         const pop_label = stringify_char_list(pop)
         const push_label = stringify_char_list(push)
 
-        labels.push(`${read}; ${pop_label}; ${push_label}`)
+        labels.push(`${read_label}; ${pop_label}; ${push_label}`)
     }
 
     return labels
