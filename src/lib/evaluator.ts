@@ -740,7 +740,7 @@ export class Evaluator extends Visitor<AstNode, Scope, any> {
         }
 
         const read = [node.condition.value, ...this.turing_list(node.pop, tapes.slice(1))]
-        const push = this.turing_list(node.push, tapes.slice(1))
+        const push = this.turing_list(node.push, tapes.slice(1), null, false)
 
         transitions.push([node.start.value, read, node.end.value, push])
     }
@@ -792,7 +792,12 @@ export class Evaluator extends Visitor<AstNode, Scope, any> {
         )
     }
 
-    turing_list(node: AstList<AstNode>, tapes: string[], output: string[] | null = null): string[] {
+    turing_list(
+        node: AstList<AstNode>,
+        tapes: string[],
+        output: string[] | null = null,
+        enforce_single_char: boolean = true,
+    ): string[] {
         if (output === null) output = tapes.map(() => "")
 
         let i = 0
@@ -803,7 +808,7 @@ export class Evaluator extends Visitor<AstNode, Scope, any> {
                 char instanceof AstTuringNamedChar ||
                 char instanceof AstTuringNamedShiftChar
             ) {
-                this.enforce_turing_single_char(char)
+                if (enforce_single_char) this.enforce_turing_single_char(char)
 
                 const tape = char.tape.value
                 if (!tapes.includes(tape))
@@ -819,7 +824,7 @@ export class Evaluator extends Visitor<AstNode, Scope, any> {
                 char instanceof AstChar ||
                 char instanceof AstTuringShiftChar
             ) {
-                this.enforce_turing_single_char(char)
+                if (enforce_single_char) this.enforce_turing_single_char(char)
 
                 if (!positional)
                     throw set_location(

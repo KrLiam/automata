@@ -1191,17 +1191,19 @@ export class PushdownAutomaton extends StateMachine<string[], [string[]]> {
 
         for (let i = 0; i < stacks.length; i++) {
             const stack = stacks[i]
-            const pop_char = pop_chars[i]
-            const push_char = push_chars[i]
+            const pop = pop_chars[i]
+            const push = push_chars[i]
 
-            if (pop_char) {
+            if (pop) {
                 stack.shrink_left()
             }
-            if (push_char) {
-                if (stack.read() !== Blank) stack.shift_right()
-                if (stack.is_off_bound()) stack.extend_right(1)
-
-                stack.write(push_char)
+            if (push) {
+                for (const char of push) {
+                    if (stack.read() !== Blank) stack.shift_right()
+                    if (stack.is_off_bound()) stack.extend_right(1)
+    
+                    stack.write(char)
+                }
             }
         }
     }
