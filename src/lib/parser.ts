@@ -130,6 +130,9 @@ export enum Patterns {
     word = "\\w+",
     identifier = "[a-zA-Z_][a-zA-Z0-9_]*",
     symbol = "\\S",
+
+    terminal = "[a-z0-9]",
+    uppercase_nonterminal = "[A-Z]",
 }
 
 export function pattern(name: keyof typeof Patterns): TokenPattern {
@@ -318,7 +321,18 @@ export function get_default_parsers(): { [key: string]: Parser<AstNode> } {
         "grammar:rule": new CallParser(parse_grammar_rule),
         "grammar:expression": delegate("grammar:alternative"),
         "grammar:alternative": new CallParser(parse_grammar_alternative),
-        "grammar:sequence": new CallParser(parse_grammar_sequence)
+        "grammar:sequence": new CallParser(parse_grammar_sequence),
+        "grammar:term": new ChooseParser(
+            option(pattern("opening_angle_bracket"), delegate("grammar:explicit_nonterminal")),
+            option(pattern("singlequote"), delegate("grammar:quoted_terminal")),
+            option(pattern("quote"), delegate("grammar:quoted_terminal")),
+            option(pattern("uppercase_nonterminal"), delegate("grammar:uppercase_nonterminal")),
+            option(pattern("terminal"), delegate("grammar:terminal")),
+        ),
+        "grammar:explicit_nonterminal": new CallParser(parse_grammar_explicit_nonterminal),
+        "grammar:quoted_terminal": new CallParser(parse_grammar_quoted_terminal),
+        "grammar:uppercase_nonterminal": new CallParser(parse_grammar_uppercase_nonterminal),
+        "grammar:terminal": new CallParser(parse_grammar_terminal),
     }
 }
 
@@ -1225,79 +1239,83 @@ export function parse_grammar_alternative(stream: TokenStream) {
     return set_location(new AstGrammarAlternative({values}), values[0], values[values.length - 1])
 }
 
-export function parse_grammar_sequence(stream: TokenStream) {    
+export function parse_grammar_sequence(stream: TokenStream) {
     const patterns = {
-        opening_angle_bracket: "<",
-        closing_angle_bracket: ">",
-        nonterminal_symbol: "[A-Z]",
-        terminal_symbol: "[a-z0-9]+",
-        escaped_terminal: String.raw`\\.`,
+        opening_angle_bracket: Patterns.opening_angle_bracket,
+        quote: Patterns.quote,
+        singlequote: Patterns.singlequote,
+        uppercase_nonterminal: Patterns.uppercase_nonterminal,
+        terminal: Patterns.terminal,
     }
+    const pattern_keys = Object.keys(patterns)
+
     return stream.syntax(patterns, () => {
-        const sequence: SentencialSequence = []
-
-        const {result: string} = stream.checkpoint(commit => {
-            const string = delegate("string", stream) as AstString
-            commit()
-            return string
-        })
-        if (string) {
-            const symbol = new Terminal(string.value)
-            return set_location(new AstGrammarSequence({value: [symbol]}), string)
+        const start = delegate("grammar:term", stream) as AstGrammarExpression
+        stream = stream.intercept(["newline"]).ignore(["whitespace"])
+    
+        const terms = [start]
+    
+        let token = stream.peek()
+        while (token && pattern_keys.includes(token.type)) {
+            const term = delegate("grammar:term", stream) as AstGrammarExpression
+            terms.push(term)
+    
+            token = stream.peek()
         }
-        
-        const [
-            opening_angle_bracket,
-            nonterminal_symbol,
-            terminal_symbol,
-            escaped_terminal
-        ] = stream.expect_multiple(
-            "opening_angle_bracket",
-            "nonterminal_symbol",
-            "terminal_symbol",
-            "escaped_terminal",
-        )
-        stream = stream.intercept(["newline"])
-
-        let start = (
-            opening_angle_bracket ??
-            nonterminal_symbol ??
-            terminal_symbol ??
-            escaped_terminal
-        ) as Token
-        let end = start
-
-        let token: Token | null = start
-        while (token) {
-            if (token.type === "opening_angle_bracket") {
-                const identifier = delegate("identifier", stream) as AstIdentifier
-
-                if (!stream.get("closing_angle_bracket")) throw set_location(
-                    new InvalidSyntax(`Unclosed non-terminal variable.`),
-                    token,
-                )
-
-                sequence.push(new NonTerminal(identifier.value))
+    
+        const sequence: SentencialSequence = []
+        for (const term of terms) {
+            if (term instanceof AstGrammarSequence) {
+                sequence.push(...term.value)
+                continue
             }
-            else if (token.type === "nonterminal_symbol") {
-                sequence.push(new NonTerminal(token.value))
-            }
-            else if (token.type === "escaped_terminal") {
-                sequence.push(new Terminal(token.value[1]))
-            }
-            else {
-                sequence.push(new Terminal(token.value))
-            }
-
-            end = token
-            token = stream.get(
-                "opening_angle_bracket",
-                "nonterminal_symbol",
-                "terminal_symbol",
-                "escaped_terminal",
+    
+            throw set_location(
+                new InvalidSyntax("Invalid term on grammar rule sequence."), term
             )
         }
-
-        return set_location(new AstGrammarSequence({value: sequence}), start, end)
+    
+        return set_location(
+            new AstGrammarSequence({value: sequence}),
+            terms[0],
+            terms[terms.length - 1]
+        )
     })
+}
+
+export function parse_grammar_explicit_nonterminal(stream: TokenStream) {
+    const open = stream.expect("opening_angle_bracket")
+
+    const identifier = delegate("identifier", stream) as AstIdentifier
+
+    const close = stream.get("closing_angle_bracket")
+    if (!close) throw set_location(
+        new InvalidSyntax(`Unclosed non-terminal variable.`), open,
+    )
+
+    const nonterminal = new NonTerminal(identifier.value)
+    return set_location(new AstGrammarSequence({value: [nonterminal]}), open, close)
+}
+
+export function parse_grammar_quoted_terminal(stream: TokenStream) {
+    const string = delegate("string", stream) as AstString
+    const terminal = new Terminal(string.value)
+
+    return set_location(new AstGrammarSequence({value:[terminal]}), string)
+}
+
+export function parse_grammar_uppercase_nonterminal(stream: TokenStream) {
+    const token = stream.syntax({uppercase_nonterminal: Patterns.uppercase_nonterminal}, () =>
+        stream.expect("uppercase_nonterminal")
+    )
+    const nonterminal = new NonTerminal(token.value)
+
+    return set_location(new AstGrammarSequence({value:[nonterminal]}), token)
+}
+
+export function parse_grammar_terminal(stream: TokenStream) {
+    const token = stream.syntax({terminal: Patterns.terminal}, () => stream.expect("terminal"))
+    const terminal = new Terminal(token.value)
+
+    return set_location(new AstGrammarSequence({value:[terminal]}), token)
 }
