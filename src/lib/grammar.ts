@@ -72,6 +72,9 @@ export function get_sentence_length(sentence: SentencialSequence) {
         0
     )
 }
+export function get_sentence_string(sentence: Sentence): string {
+    return sentence.map(t => t.value).join("")
+}
 
 export function sequence_symbols(sequence: SentencialSequence): SentenceSymbol[] {
     const symbols: SentenceSymbol[] = []

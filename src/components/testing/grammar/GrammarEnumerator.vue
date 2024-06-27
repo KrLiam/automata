@@ -7,7 +7,7 @@
         <div class="top">
             <div class="control">
                 <span v-if="is_enumerating">Enumerating...</span>
-                <button v-else @click="request_sentences">Continue</button>
+                <button v-else @click="request_sentences()">Continue</button>
             </div>
             <button class="close green" @click="close">X</button>
         </div>
@@ -36,7 +36,7 @@ defineEmits<{
 </script>
 
 <script lang="ts">
-import { Grammar, serialize_sequence, type Sentence } from "@/lib/grammar"
+import { get_sentence_string, Grammar, serialize_sequence, type Sentence } from "@/lib/grammar"
 import { defineComponent } from "vue"
 import SentenceElement from "./SentenceElement.vue"
 import GrammarEnumeratorWorker from "@/workers/grammar_enumerator?worker"
@@ -52,7 +52,9 @@ export default defineComponent({
         worker: new GrammarEnumeratorWorker(),
         sentences: [] as Sentence[],
         is_enumerating: false,
-        production_amount: 50,
+        enumerated_amount: 0,
+        requested_amount: 0,
+        default_request_amount: 50,
     }),
     mounted() {
         this.worker.onmessage = this.worker_message.bind(this)
@@ -87,19 +89,46 @@ export default defineComponent({
             this.request_sentences()
         },
 
-        request_sentences() {
-            this.worker.postMessage({type: "enumerate", amount: this.production_amount})
+        request_sentences(amount: number | null = null) {
+            this.requested_amount = amount ?? this.default_request_amount
+            this.enumerated_amount = 0
+
+            this.worker.postMessage({
+                type: "enumerate", amount: this.requested_amount
+            })
             this.is_enumerating = true
+        },
+        
+        has_sentence(value: Sentence) {
+            const value_string = get_sentence_string(value)
+
+            for (const sentence of this.sentences) {
+                if (get_sentence_string(sentence) === value_string) return true
+            }
+
+            return false
         },
 
         worker_message(event:  MessageEvent<any>) {
             const data = recover_prototypes(event.data) as GrammarEnumeratorResponse
 
             if (data.type === "sentence") {
-                this.sentences.push(data.value)
+                const sentence = data.value
+
+                if (!this.has_sentence(sentence)) {
+                    this.sentences.push(data.value)
+                    this.enumerated_amount++
+                }
             }
             else if (data.type === "done") {
-                this.is_enumerating = false
+                const remaining = this.requested_amount - this.enumerated_amount
+
+                if (!remaining) {
+                    this.is_enumerating = false
+                }
+                else {
+                    this.request_sentences(remaining)
+                }
             }
             else if (data.type === "closed") {
                 this.worker.terminate()
