@@ -375,7 +375,6 @@ export abstract class StateMachine<R extends TransitionSymbol, A extends any[]> 
 
         const symbols = this.transition_alphabet()
         symbols.delete(Epsilon)
-        symbols.delete(Blank)
         this.alphabet = new Set([...alphabet, ...symbols])
     }
 

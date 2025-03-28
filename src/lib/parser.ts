@@ -1186,8 +1186,18 @@ export function parse_regex_parens(stream: TokenStream) {
 }
 
 export function parse_regex_literal(stream: TokenStream) {
-    return stream.syntax({regex_literal: "[^\\s()*+?|]"}, () => {
-        const token = stream.expect("regex_literal")
+    return stream.syntax({regex_literal: String.raw`[^\s()*+?|\\]`, backslash: String.raw`\\`}, () => {
+        let token: Token
+
+        if (stream.get("backslash")) {
+            token = stream.intercept(["whitespace", "newline"], () => stream.syntax({char: "."}, () => {
+                return stream.expect("char")
+            }))
+        }
+        else {
+            token = stream.expect("regex_literal")
+        }
+
         return set_location(new AstRegexLiteral({value: token.value}), token)
     })
 }
