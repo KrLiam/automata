@@ -905,37 +905,23 @@ export function parse_char_condition(stream: TokenStream): AstIdentifier | AstCh
         identifier: Patterns.identifier,
     })
 
-    const [unquoted_char, quote, identifier] = stream.expect_multiple(
-        "unquoted_char",
-        "quote",
-        "identifier",
-    )
+    const token = stream.peek()
+    let node: AstIdentifier | AstChar
 
-    let node
-
-    if (unquoted_char) {
+    if (token.match("unquoted_char")) {
+        stream.next()
         node = set_location(
-            new AstChar({ value: unquoted_char.value }),
-            unquoted_char,
+            new AstChar({ value: token.value }),
+            token,
         )
-    } else if (quote) {
-        node = stream.intercept(["whitespace", "newline"], () => {
-            const quoted_char = stream.syntax({ char: '[^\\n\\r\\t"]+' }, () =>
-                stream.get("char"),
-            )
-            const closing_quote = stream.expect("quote")
-
-            return set_location(
-                new AstChar({ value: quoted_char ? quoted_char.value : "" }),
-                quote,
-                closing_quote,
-            )
-        })
+    } else if (token.match("quote")) {
+        let string = delegate("string", stream) as AstString
+        node = set_location(new AstChar({ value: string.value }), string)
     } else {
         // prettier-ignore
         node = set_location(
             // @ts-ignore
-            new AstIdentifier({ value: identifier.value }), identifier,
+            new AstIdentifier({ value: token.value }), token,
         )
     }
 
