@@ -905,7 +905,12 @@ export function parse_char_condition(stream: TokenStream): AstIdentifier | AstCh
         identifier: Patterns.identifier,
     })
 
+    let location = stream.location
     const token = stream.peek()
+    if (token == null) {
+        throw set_location(new InvalidSyntax("Expected char condition."), location)
+    }
+
     let node: AstIdentifier | AstChar
 
     if (token.match("unquoted_char")) {
