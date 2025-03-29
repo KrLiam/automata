@@ -589,7 +589,7 @@ export class Evaluator extends Visitor<AstNode, Scope, any> {
     regex(node: AstRegex, scope: Scope) {
         const automaton = this.invoke(node.children, scope) as FiniteObject
 
-        return automaton.$minimize().$reenumerate()
+        return automaton.$minimize().$reenumerate("q")
     }
 
     @rule(AstRegexChildren)

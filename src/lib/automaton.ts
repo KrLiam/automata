@@ -394,6 +394,21 @@ export abstract class StateMachine<R extends TransitionSymbol, A extends any[]> 
 
     abstract to_pattern(value: TransitionSymbol): R
 
+    to_json(): JsonValue {
+        let transition_map: any = {}
+        for (let [origin, symbol, value] of this.traverse()) {
+            let key = Array.isArray(symbol) ? symbol : [symbol]
+            let v = value.length == 1 ? value[0] : value
+            transition_map[JSON.stringify([origin, ...key])] = v
+        }
+
+        return {
+            initial_state: this.initial_state,
+            final_states: [...this.final_states],
+            transition_map: transition_map,
+        }
+    }
+
     transition(state: string): TransitionSymbolMap<A> | undefined
     transition(state: string, read: null): TransitionSymbolMap<A> | undefined
     transition(state: string, read: R, literal?: boolean): Transition<R, A>[]

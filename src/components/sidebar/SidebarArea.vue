@@ -14,6 +14,10 @@
                     </span>
                 </div>
             </div>
+            <button v-if="isSelectedAutomaton" @click="copy_json">
+                Copy Json
+            </button>
+            
             <button v-if="showViewDeterministic" @click="view_deterministic">
                 View Deterministic
             </button>
@@ -47,6 +51,7 @@ defineEmits<{
     (e: "test_automaton", input: string): void
     (e: "test_grammar"): void
     (e: "enumerate_grammar"): void
+    (e: "log", ev: [string, string, boolean]): void
 }>()
 </script>
 
@@ -190,6 +195,15 @@ export default defineComponent({
             if (!obj || !(obj.value instanceof FiniteAutomaton)) return
 
             this.select("#min")
+        },
+        copy_json() {
+            if (!this.isSelectedAutomaton) return
+            const automaton = this.selected?.value as FiniteAutomaton
+            const json = JSON.stringify(automaton.to_json(), null, 2)
+            navigator.clipboard.writeText(json)
+
+            let name = this.pathFragments.map(f => f.text).join("")
+            this.$emit("log", ["info", `Copied ${name} to clipboard!`, false])
         },
 
         test_automaton(input: string) {

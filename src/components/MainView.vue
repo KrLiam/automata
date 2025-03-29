@@ -18,6 +18,7 @@
                         @test_automaton="test_automaton"
                         @test_grammar="test_grammar"
                         @enumerate_grammar="enumerate_grammar"
+                        @log="$emit('log', $event)"
                     ></SidebarArea>
                 </template>
                 <template v-slot:right>
@@ -69,6 +70,7 @@ defineProps<{
 defineEmits<{
     (e: "lock-compilation", event: void): void
     (e: "unlock-compilation", event: void): void
+    (e: "log", ev: [string, string, boolean]): void
 }>()
 </script>
 

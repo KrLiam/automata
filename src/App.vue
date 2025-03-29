@@ -175,6 +175,7 @@ export default defineComponent({
                     :objects="objects"
                     @lock-compilation="lockCompilation"
                     @unlock-compilation="unlockCompilation"
+                    @log="log($event[0], $event[1], $event[2])"
                 ></MainView>
             </template>
         </SplitView>
