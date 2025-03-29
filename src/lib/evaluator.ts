@@ -15,6 +15,7 @@ import {
     AstPrint,
     AstPushdownAutomaton,
     AstPushdownTransition,
+    AstReenumerate,
     AstRegex,
     AstRegexBinary,
     AstRegexChildren,
@@ -374,12 +375,23 @@ export class FiniteObject extends LangObject {
     }
 
     @object_method
-    $reenumerate() {
+    $reenumerate(names: string | string[]) {
+        const aut = this.value
         function* gen() {
             let i = 0
             
             while (true) {
-                yield `q${i}`
+                if (Array.isArray(names)) {
+                    if (aut.states.size > names.length) {
+                        throw new EvaluationError(
+                            `Automaton has ${aut.states.size} state(s), but only ${names.length} name(s) were provided.`
+                        )
+                    }
+                    yield names[i]
+                }
+                else {
+                    yield `${names}${i}`
+                }
                 i += 1
             }
         }
@@ -556,6 +568,21 @@ export class Evaluator extends Visitor<AstNode, Scope, any> {
         )
 
         return method()
+    }
+
+    @rule(AstReenumerate)
+    reenumerate(node: AstReenumerate, scope: Scope): any {
+        const operand = this.invoke(node.value, scope)
+
+        if (!(operand instanceof FiniteObject)) throw set_location(
+            new EvaluationError(`Operand ${operand} of ${node.op} is illegal value.`),
+            operand
+        )
+
+        let names = node.names instanceof AstList ?
+            node.names.values.map(v => v.value) :
+            node.names.value
+        return operand.$reenumerate(names)
     }
 
     @rule(AstRegex)

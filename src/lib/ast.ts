@@ -61,6 +61,24 @@ export class AstUnary extends AstExpression {
     }
 }
 
+export type AstReenumerateArgs = AstNodeArgs & {
+    op: string
+    value: AstExpression
+    names: AstList<AstString> | AstString
+}
+export class AstReenumerate extends AstExpression {
+    op: string
+    value: AstExpression
+    names: AstList<AstString> | AstString
+
+    constructor({ op, value, names, ...args }: AstReenumerateArgs) {
+        super(args)
+        this.op = op
+        this.value = value
+        this.names = names
+    }
+}
+
 export type AstBinaryArgs = AstNodeArgs & {
     op: string
     left: AstExpression

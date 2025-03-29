@@ -49,6 +49,7 @@ import {
     AstRegexUnary,
     type AstRegexFragment,
     AstRegexBinary,
+    AstReenumerate,
 } from "./ast"
 import { Token, set_location } from "./tokenstream"
 import { ParseError } from "./error"
@@ -72,6 +73,7 @@ export const keywords = [
     "complement",
     "determinize",
     "reenumerate",
+    "as",
     "star",
     "reverse",
     "concatenate",
@@ -95,6 +97,7 @@ export enum Patterns {
     complement = "complement\\b",
     determinize = "determinize\\b",
     reenumerate = "reenumerate\\b",
+    as = "as\\b",
     star = "star\\b",
     reverse = "reverse\\b",
     concatenate = "concatenate\\b",
@@ -205,9 +208,16 @@ export function get_default_parsers(): { [key: string]: Parser<AstNode> } {
         ),
         "expression:concatenate": new BinaryParser(
             [pattern("concatenate"), pattern("dot")],
-            delegate("expression:unary"),
+            delegate("expression:reenumerate"),
             {dot: "concatenate"}
         ),
+        "expression:reenumerate": new CallParser(parse_reenumerate),
+        "expression:reenumerate:names": new ChooseParser(
+            option("quote", delegate("string")),
+            option("singlequote", delegate("string")),
+            option("opening_square_bracket", delegate("expression:list:string")),
+        ),
+
         "expression:unary": new UnaryParser(
             [
                 pattern("complement"),
@@ -247,6 +257,7 @@ export function get_default_parsers(): { [key: string]: Parser<AstNode> } {
             pattern("opening_square_bracket"),
             pattern("closing_square_bracket"),
             pattern("comma"),
+            false
         ),
 
         turing: new CallParser(parse_turing_machine),
@@ -786,6 +797,21 @@ export class UnaryParser {
     }
 }
 
+export function parse_reenumerate(stream: TokenStream): AstExpression {
+    let keyword = stream.get("reenumerate")
+    if (!keyword) return delegate("expression:unary", stream)
+
+    const value = delegate("expression:unary", stream)
+
+    let names: AstList<AstString> | AstString = new AstString({value: "q"})
+    let end: any = null
+
+    if (stream.get("as")) {
+        names = delegate("expression:reenumerate:names", stream) as AstList<AstString> | AstString
+    }
+
+    return set_location(new AstReenumerate({op: "reenumerate", value, names}), keyword, end ?? keyword)
+}
 
 export function parse_string(stream: TokenStream): AstString {
     const [quote, singlequote] = stream.expect_multiple("quote", "singlequote")
