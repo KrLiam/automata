@@ -239,12 +239,28 @@ export class AstTransition extends AstNode {
 export type AstCharArgs = AstNodeArgs & {
     value: string
 }
+
 export class AstChar extends AstNode {
     value: string
 
     constructor({ value, ...args }: AstCharArgs) {
         super(args)
         this.value = value
+    }
+}
+
+export type AstCharRangeArgs = AstNodeArgs & {
+    start: AstChar
+    end: AstChar
+}
+export class AstCharRange extends AstNode {
+    start: AstChar
+    end: AstChar
+
+    constructor({ start, end, ...args }: AstCharRangeArgs) {
+        super(args)
+        this.start = start
+        this.end = end
     }
 }
 

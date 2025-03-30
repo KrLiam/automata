@@ -2,6 +2,7 @@ import {
     AstAutomatonAssignment,
     AstBinary,
     AstChar,
+    AstCharRange,
     AstFinalState,
     AstFiniteAutomaton,
     AstGrammar,
@@ -693,9 +694,26 @@ export class Evaluator extends Visitor<AstNode, Scope, any> {
             const start = node.start.value
             const symbol = condition.value
             const end = node.end.value
-
+            
             transitions.push([start, symbol, end])
-        } else if (condition instanceof AstIdentifier)
+        }
+        else if (condition instanceof AstCharRange) {            
+            let start_code = condition.start.value.charCodeAt(0)
+            let end_code = condition.end.value.charCodeAt(0)
+            
+            if (start_code > end_code) throw set_location(
+                new EvaluationError(`Invalid character range. Lower bound must be less than or equal to the greater bound.`), condition
+            )
+            
+            const start = node.start.value
+            const end = node.end.value
+
+            for (let code = start_code; code <= end_code; code++) {
+                let symbol = String.fromCharCode(code)
+                transitions.push([start, symbol, end])
+            }
+        }
+        else if (condition instanceof AstIdentifier)
             throw set_location(
                 new EvaluationError(
                     `Name references in transition conditions are not supported yet.`,
@@ -893,13 +911,14 @@ export class Evaluator extends Visitor<AstNode, Scope, any> {
         } else if (condition instanceof AstChar) {
             this.enforce_turing_single_char(condition)
             read = read.map(() => condition.value)
-        } else if (condition instanceof AstIdentifier)
+        } else {
             throw set_location(
                 new EvaluationError(
-                    `Name references in transition conditions are not supported yet.`,
+                    `Invalid transition condition.`,
                 ),
                 condition,
             )
+        }
 
         let write: string[] = Array.from(read)
 

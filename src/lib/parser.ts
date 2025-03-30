@@ -50,6 +50,7 @@ import {
     type AstRegexFragment,
     AstRegexBinary,
     AstReenumerate,
+    AstCharRange,
 } from "./ast"
 import { Token, set_location } from "./tokenstream"
 import { ParseError } from "./error"
@@ -120,6 +121,7 @@ export enum Patterns {
     vertical_bar = "\\|",
     asterisk = "\\*",
     plus = "\\+",
+    minus = "\\-",
     ampersand = "&",
     dot = "\\.",
     tilde = "~",
@@ -153,7 +155,10 @@ export function get_default_parsers(): { [key: string]: Parser<AstNode> } {
             null,
             pattern("comma")
         ),
-        char_condition: new CallParser(parse_char_condition),
+        char_condition: delegate("char_range"),
+        char_range: new CallParser(parse_char_range),
+        char: new CallParser(parse_char),
+
         string: new CallParser(parse_string),
 
         module: new RootParser(delegate("statement")),
@@ -924,36 +929,52 @@ export function parse_finite_automaton(stream: TokenStream) {
     return set_location(node, keyword ?? name, body)
 }
 
-export function parse_char_condition(stream: TokenStream): AstIdentifier | AstChar {
+export function parse_char_range(stream: TokenStream): AstIdentifier | AstChar | AstCharRange {
+    const start = delegate("char", stream) as AstIdentifier | AstChar
+    
+    if (!stream.intercept(["whitespace", "newline"]).get("minus")) return start
+
+    const end = delegate("char", stream) as AstIdentifier | AstChar
+
+    return set_location(new AstCharRange({ start, end }), start, end)
+}
+
+export function parse_char(stream: TokenStream): AstIdentifier | AstChar {
     stream = stream.syntax({
         unquoted_char: "[a-zA-Z0-9]\\b",
         quote: '"',
         identifier: Patterns.identifier,
+        hex_char: String.raw`0x[0-9a-fA-F]{2}`
     })
 
     let location = stream.location
     const token = stream.peek()
-    if (token == null) {
-        throw set_location(new InvalidSyntax("Expected char condition."), location)
-    }
 
     let node: AstIdentifier | AstChar
 
-    if (token.match("unquoted_char")) {
+    if (token?.match("unquoted_char")) {
         stream.next()
         node = set_location(
             new AstChar({ value: token.value }),
             token,
         )
-    } else if (token.match("quote")) {
+    } else if (token?.match("quote")) {
         let string = delegate("string", stream) as AstString
         node = set_location(new AstChar({ value: string.value }), string)
-    } else {
+    } else if (token?.match("identifier")) {
         // prettier-ignore
         node = set_location(
             // @ts-ignore
             new AstIdentifier({ value: token.value }), token,
         )
+    }
+    else if (token?.match("hex_char")) {
+        stream.next()
+        let code = parseInt(token.value)
+        node = set_location(new AstChar({ value: String.fromCharCode(code) }), token)
+    }
+    else {
+        throw set_location(new InvalidSyntax("Expected char condition."), location)
     }
 
     return node

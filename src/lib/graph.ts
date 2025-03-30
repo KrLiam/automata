@@ -523,9 +523,14 @@ export function stringify_char_list(value: string[]) {
 
 export function make_finite_label(transitions: FiniteTransition[]): string[] {
     const chars = transitions.map(([_, read]) => read)
-    const label = stringify_char_list(chars)
 
-    return [label]
+    let labels: string[] = []
+    for (let i = 0; i < chars.length; i += 16) {
+        let label = stringify_char_list(chars.slice(i, i + 16))
+        labels.push(label)
+    }
+
+    return labels
 }
 
 export function make_turing_label(transitions: TuringTransition[]): string[] {

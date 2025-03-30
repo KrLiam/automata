@@ -40,6 +40,7 @@ import {
     AstRegexBinary,
     AstRegexLiteral,
     AstRegexUnary,
+    AstCharRange,
 } from "./ast"
 import { FiniteAutomaton, PushdownAutomaton, Tape, TuringMachine } from "./automaton"
 import { Binding, Scope, LangObject, FiniteObject, TuringObject, PushdownObject, GrammarObject } from "./evaluator"
@@ -105,6 +106,7 @@ export const prototypes: any[] = [
     AstGrammarExpression,
     AstGrammarRule,
     AstGrammarSequence,
+    AstCharRange,
     Object,
     Array,
     Set,
