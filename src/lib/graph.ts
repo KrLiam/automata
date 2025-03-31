@@ -23,6 +23,9 @@ export const vec = {
     distance([x1, y1]: Vector2, [x2, y2]: Vector2): number {
         return Math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
     },
+    squared_magnitude([x, y]: Vector2): number {
+        return x ** 2 + y ** 2
+    },
     magnitude([x, y]: Vector2): number {
         return Math.sqrt(x ** 2 + y ** 2)
     },
