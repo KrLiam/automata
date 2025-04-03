@@ -83,6 +83,7 @@ import GrammarTestingTool from "./testing/grammar/GrammarTestingTool.vue"
 import GrammarEnumerator from "./testing/grammar/GrammarEnumerator.vue"
 import GraphVisualizer, { type Visualizer } from "./GraphVisualizer.vue"
 import SidebarArea from "./sidebar/SidebarArea.vue"
+import GraphLayoutWorker from "@/workers/layout?worker"
 import { FiniteObject, GrammarObject, LangObject, Scope } from "../lib/evaluator"
 import { StateMachine, TuringMachine } from "../lib/automaton"
 import { convert_turing_xml } from "../lib/export"
@@ -95,6 +96,7 @@ import {
     tuple_key,
 } from "../lib/graph"
 import type { Grammar } from "@/lib/grammar"
+import type { LayoutMessage } from "@/workers/layout"
 
 export enum Status {
     Idle,
@@ -114,6 +116,8 @@ export default defineComponent({
         SplitView,
     },
     data: () => ({
+        layout_worker: new GraphLayoutWorker(),
+
         selected: [] as string[],
         graph: make_graph(),
         graph_style: null as GraphStyle | null,
@@ -126,6 +130,8 @@ export default defineComponent({
         window.addEventListener("storage", (event) => {
             if (event.key === "saved_graphs") this.update_graph()
         })
+
+        this.layout_worker.onmessage = this.layout_response.bind(this)
     },
     watch: {
         objects() {
@@ -180,6 +186,7 @@ export default defineComponent({
             const value = this.get_selected_automaton()
             if (!value) {
                 this.graph = make_graph()
+                this.layout_worker.postMessage({ type: "stop" })
                 return
             }
 
@@ -192,11 +199,29 @@ export default defineComponent({
                 node => this.generate_node_pos(),
             )
 
+            const g = JSON.parse(JSON.stringify(this.graph))
+            this.layout_worker.postMessage({
+                type: "request_graph", graph: g
+            } as LayoutMessage)
+            console.log("requesting graph layout")
+
             this.save_graph(name, this.graph)
         },
         generate_node_pos(): Vector2 {
             const rect = this.visualizer?.canvas.rect ?? { width: 500, height: 500 }
             return random_position([0, 0], [rect.width, rect.height])
+        },
+        layout_response(event: MessageEvent<any>) {
+            const data = event.data as LayoutMessage
+            if (data.type === "response") {
+                //console.log(`received layout response.`)
+
+                //console.log(Object.entries(data.pos).map(([v, pos]) => `${v}: ${pos}`).join(", "))
+                for (let [node, pos] of Object.entries(data.pos)) {
+                    if (!this.graph.nodes[node]) continue
+                    this.graph.nodes[node] = pos
+                }
+            }
         },
 
         download(filename: string, text: string) {
