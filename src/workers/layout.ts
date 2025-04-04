@@ -18,12 +18,13 @@ const builder = {
     interval_id: -1,
     
     iter: 0,
-    max_iterations: 2000,
+    iters_per_update: 12,
+    max_iterations: 10000,
     ideal_edge_len: 5.0,
     cooling_factor: 0.998,
-    temperature: 1.0,
+    temperature: 0.1,
     threshold: 0.0025,
-    gravity_factor: 1.0,
+    gravity_factor: 5.0,
     limit_box: [[-200.0, -200.0], [200.0, 200.0]] as [Vector2, Vector2],
 
     init(g: GraphData) {
@@ -53,7 +54,7 @@ const builder = {
 
         if (this.iter >= this.max_iterations) return
 
-        this.apply()
+        this.apply_many(this.iters_per_update)
 
         postMessage({
             type: "response",
@@ -79,7 +80,13 @@ const builder = {
             return delta
         }
         
-        return [1, 1] // must be random
+        return vec.prod(vec.normalized([Math.random(), Math.random()]), 10.0)
+    },
+
+    apply_many(n: number) {
+        for (let i = 0; i < n; i++) {
+            this.apply()
+        }
     },
 
     apply() {

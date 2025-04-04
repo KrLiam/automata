@@ -33,10 +33,12 @@ withDefaults(
 defineEmits<{
     (e: "mounted", event: Visualizer): void
     (e: "updated-graph", event: void): void
+    (e: "node-moved", event: State): void
 }>()
 </script>
 
 <script lang="ts">
+import type { State } from "@/lib/automaton"
 import { type GraphData, type Vector2, Canvas, vec, get_loop_direction, normalize_angle_range, type GraphArc, get_curved_arc, type GraphUnits, type GraphStyle, type NodeStyle, type ArcStyle, TextAlign } from "../lib/graph"
 import { defineComponent, defineProps, withDefaults } from "vue"
 
@@ -495,6 +497,7 @@ export default defineComponent({
                 
                 if (this.drag.type === DragType.Node) {
                     this.value.nodes[this.drag.value] = drag_pos
+                    this.$emit("moved-node", this.drag.value)
                     this.hover.pos = drag_pos
                     return
                 }

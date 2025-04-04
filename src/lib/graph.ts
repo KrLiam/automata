@@ -109,14 +109,17 @@ export const vec = {
     proj(a: Vector2, b: Vector2) {
         return vec.prod(b, vec.dot(a, b) / vec.dot(b, b))
     },
-    center(...pos: Vector2[]) {
+    bbox(...pos: Vector2[]): [min: Vector2, max: Vector2] {
         const x = pos.map(([x, _]) => x)
         const y = pos.map(([_, y]) => y)
-        return vec.lerp(
-            [Math.max(...x), Math.max(...y)],
+        return [
             [Math.min(...x), Math.min(...y)],
-            0.5,
-        )
+            [Math.max(...x), Math.max(...y)],
+        ]
+    },
+    center(...pos: Vector2[]) {
+        const [min, max] = vec.bbox(...pos)
+        return vec.lerp(min, max, 0.5)
     },
 }
 
@@ -490,6 +493,14 @@ export interface GraphData {
     initial: State
     finals: State[]
 }
+export function get_node_neighbours(node: State, edges: [State, State][]): Set<State> {
+    let neighbours: Set<State> = new Set()
+    for (let [u, v] of edges) {
+        if (u == node) neighbours.add(v)
+        if (v == node) neighbours.add(u)
+    }
+    return neighbours
+}
 
 export interface NodeStyle {
     color: string
@@ -571,7 +582,7 @@ export function make_pushdown_label(transitions: PushdownTransition[]): string[]
 export function make_graph(
     obj: StateMachine<any, any> | null = null,
     base_graph: GraphData | null = null,
-    positioning: ((node: string) => Vector2) | null = null,
+    positioning: ((node: State) => Vector2) | null = null,
 ): GraphData {
     if (!positioning) positioning = () => [0, 0]
 

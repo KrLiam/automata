@@ -26,6 +26,7 @@
                         :value="graph"
                         :style="graph_style ?? {nodes:{},arcs:{}}"
                         @mounted="visualizer = $event"
+                        @node-moved="node_moved($event)"
                         @updated-graph="
                             selected ? save_graph(selectedName, graph) : null
                         "
@@ -85,7 +86,7 @@ import GraphVisualizer, { type Visualizer } from "./GraphVisualizer.vue"
 import SidebarArea from "./sidebar/SidebarArea.vue"
 import GraphLayoutWorker from "@/workers/layout?worker"
 import { FiniteObject, GrammarObject, LangObject, Scope } from "../lib/evaluator"
-import { StateMachine, TuringMachine } from "../lib/automaton"
+import { StateMachine, TuringMachine, type State } from "../lib/automaton"
 import { convert_turing_xml } from "../lib/export"
 import {
     make_graph,
@@ -94,6 +95,8 @@ import {
     type Vector2,
     type GraphStyle,
     tuple_key,
+    get_node_neighbours,
+    vec,
 } from "../lib/graph"
 import type { Grammar } from "@/lib/grammar"
 import type { LayoutMessage } from "@/workers/layout"
@@ -193,10 +196,11 @@ export default defineComponent({
             const name = this.selectedName
 
             const saved = this.get_graph(name)
+            const edges: [State, State][] = [...value.transitions()].map(([origin, _, dest]) => [origin, dest])
             this.graph = make_graph(
                 value,
                 saved,
-                node => this.generate_node_pos(),
+                node => this.generate_node_pos(node, saved.nodes, edges),
             )
 
             const g = JSON.parse(JSON.stringify(this.graph))
@@ -207,10 +211,33 @@ export default defineComponent({
 
             this.save_graph(name, this.graph)
         },
-        generate_node_pos(): Vector2 {
-            const rect = this.visualizer?.canvas.rect ?? { width: 500, height: 500 }
-            return random_position([0, 0], [rect.width, rect.height])
+        generate_node_pos(node: State, nodes: {[name: State]: Vector2}, edges: [State, State][]): Vector2 {
+            const {width, height} = this.visualizer?.canvas.rect ?? { width: 500, height: 500 }
+            let rect: Vector2 = [width, height]
+
+            let center: Vector2 = vec.quot(rect, 2)
+            const neighbours = get_node_neighbours(node, edges)
+            console.log("neighbours", neighbours)
+            if (neighbours.size) {
+                const positions = Object.entries(nodes)
+                    .filter(([v, _]) => neighbours.has(v))
+                    .map(([_, pos]) => pos)
+                center = vec.center(...positions)
+
+                const [min, max] = vec.bbox(...positions)
+                console.log(min, max)
+                rect = [0, 0]
+            }
+
+            return random_position(vec.diff(center, vec.quot(rect, 2)), rect)
         },
+
+        node_moved(node: State) {
+            let updated_pos: {[name: State]: Vector2} = {}
+            updated_pos[node] = this.graph.nodes[node]
+            this.layout_worker.postMessage({ type: "update_graph", updated_pos})
+        },
+        
         layout_response(event: MessageEvent<any>) {
             const data = event.data as LayoutMessage
             if (data.type === "response") {
