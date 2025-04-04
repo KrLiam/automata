@@ -122,6 +122,7 @@ const builder = {
         for (let v of Object.keys(this.graph.nodes)) {
             const pos = this.graph.nodes[v]
             const force_mag = vec.magnitude(forces[v])
+            if (force_mag === 0.0) continue
             const factor = Math.min(t, force_mag) / force_mag
             this.graph.nodes[v] = vec.sum(pos, vec.prod(forces[v], factor))
         }
