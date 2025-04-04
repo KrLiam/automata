@@ -221,6 +221,7 @@ export default defineComponent({
                     if (!this.graph.nodes[node]) continue
                     this.graph.nodes[node] = pos
                 }
+                this.save_graph(this.selectedName, this.graph)
             }
         },
 

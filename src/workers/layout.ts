@@ -21,7 +21,7 @@ const builder = {
     max_iterations: 2000,
     ideal_edge_len: 5.0,
     cooling_factor: 0.998,
-    temperature: 5.0,
+    temperature: 1.0,
     threshold: 0.0025,
     gravity_factor: 1.0,
     limit_box: [[-200.0, -200.0], [200.0, 200.0]] as [Vector2, Vector2],
@@ -83,7 +83,7 @@ const builder = {
     },
 
     apply() {
-        const k = 500
+        const k = 200
         const t = this.temperature
 
         let forces: { [name: State]: Vector2 } = {}
@@ -95,7 +95,7 @@ const builder = {
 
                 const delta = this.delta(v, u)
                 const delta_mag = vec.magnitude(delta)
-                const f_r = 5*k**2 / delta_mag
+                const f_r = k**2 / delta_mag
                 total = vec.sum(total, vec.prod(vec.quot(delta, delta_mag), f_r) )
             }
             forces[v] = total
@@ -109,7 +109,7 @@ const builder = {
             const f_a = delta_mag**2 / k
             const force = vec.prod(vec.quot(delta, delta_mag), f_a)
             forces[v] = vec.sum(forces[v], vec.negated(force))
-            forces[u] = vec.sum(forces[v], force)
+            forces[u] = vec.sum(forces[u], force)
         }
 
         for (let v of Object.keys(this.graph.nodes)) {
