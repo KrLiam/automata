@@ -1,28 +1,29 @@
 import type { State } from "@/lib/automaton"
-import { from_tuple_key, vec, type GraphData, type Vector2 } from "@/lib/graph"
+import { from_tuple_key, make_graph, vec, type GraphData, type Vector2 } from "@/lib/graph"
 import { recover_prototypes } from "@/lib/prototypes"
 
 export type LayoutMessage = 
     { type: "request_graph", name: string, graph: GraphData } |
     { type: "stop" } |
-    { type: "update_graph", updated_pos: {[name: State]: Vector2} } |
+    { type: "update_graph", updated_pos?: {[name: State]: Vector2}, updated_locked_nodes?: {[name: State]: boolean} } |
     { type: "response", name: string, pos: {[name: State]: Vector2}, iteration: number }
 
 
 const builder = {
-    graph: {nodes: {}, arcs: {}, initial: "", finals: []} as GraphData,
+    graph: make_graph(),
     center: [0.0, 0.0] as Vector2,
     updated_pos: {} as {[name: State]: Vector2},
+    updated_locked_nodes: {} as {[name: State]: boolean},
 
     interval: 1000 / 100,
     interval_id: -1,
     
     iter: 0,
-    iters_per_update: 12,
+    iters_per_update: 10,
     max_iterations: 10000,
     ideal_edge_len: 5.0,
     cooling_factor: 0.998,
-    temperature: 0.1,
+    temperature: 1.0,
     threshold: 0.0025,
     gravity_factor: 5.0,
     limit_box: [[-200.0, -200.0], [200.0, 200.0]] as [Vector2, Vector2],
@@ -44,13 +45,14 @@ const builder = {
     },
 
     update() {
-        if (Object.keys(this.updated_pos).length) {
-            this.iter = 0
-        }
         for (const [v, pos] of Object.entries(this.updated_pos)) {
             this.graph.nodes[v] = pos
         }
+        for (const [v, locked] of Object.entries(this.updated_locked_nodes)) {
+            this.graph.locked_nodes[v] = locked
+        }
         this.updated_pos = {}
+        this.updated_locked_nodes = {}
 
         if (this.iter >= this.max_iterations) return
 
@@ -90,7 +92,7 @@ const builder = {
     },
 
     apply() {
-        const k = 200
+        const k = 100
         const t = this.temperature
 
         let forces: { [name: State]: Vector2 } = {}
@@ -120,6 +122,8 @@ const builder = {
         }
 
         for (let v of Object.keys(this.graph.nodes)) {
+            if (this.graph.locked_nodes[v]) continue
+            
             const pos = this.graph.nodes[v]
             const force_mag = vec.magnitude(forces[v])
             if (force_mag === 0.0) continue
@@ -127,11 +131,12 @@ const builder = {
             this.graph.nodes[v] = vec.sum(pos, vec.prod(forces[v], factor))
         }
 
-        const barycenter = this.get_barycenter()
-        const delta = vec.diff(this.center, barycenter)
-        for (let v of Object.keys(this.graph.nodes)) {
-            this.graph.nodes[v] = vec.sum(this.graph.nodes[v], delta)
-        }
+        // const barycenter = this.get_barycenter()
+        // const delta = vec.diff(this.center, barycenter)
+        // for (let v of Object.keys(this.graph.nodes)) {
+        //     if (this.graph.locked_nodes[v]) continue
+        //     this.graph.nodes[v] = vec.sum(this.graph.nodes[v], delta)
+        // }
 
         this.iter++
     }
@@ -147,6 +152,8 @@ onmessage = function (event) {
         builder.stop()
     }
     else if (data.type === "update_graph") {
-        builder.updated_pos = {...builder.updated_pos, ...data.updated_pos}
+        builder.iter = 0
+        builder.updated_pos = {...builder.updated_pos, ...(data.updated_pos ?? {})}
+        builder.updated_locked_nodes = {...builder.updated_locked_nodes, ...(data.updated_locked_nodes ?? {})}
     }
 }

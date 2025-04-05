@@ -489,6 +489,7 @@ export interface GraphArc {
 
 export interface GraphData {
     nodes: { [name: State]: Vector2 }
+    locked_nodes: { [name: State]: boolean }
     arcs: { [tuple: string]: GraphArc }
     initial: State
     finals: State[]
@@ -586,7 +587,13 @@ export function make_graph(
 ): GraphData {
     if (!positioning) positioning = () => [0, 0]
 
-    const graph: GraphData = { nodes: {}, arcs: {}, initial: "", finals: [] }
+    const graph: GraphData = {
+        nodes: {},
+        locked_nodes: base_graph?.locked_nodes ?? {},
+        arcs: {},
+        initial: "",
+        finals: []
+    }
 
     if (!obj) return graph
 

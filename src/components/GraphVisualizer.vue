@@ -19,6 +19,13 @@
             title="Auto-focus"
             v-model="autofocus"
         >
+        <button
+            class="lock-button"
+            v-if="showLockButton"
+            @click="toggleLock"
+        >
+            {{ lockButtonText }}
+        </button>
     </div>
 </template>
 
@@ -33,7 +40,9 @@ withDefaults(
 defineEmits<{
     (e: "mounted", event: Visualizer): void
     (e: "updated-graph", event: void): void
-    (e: "node-moved", event: State): void
+    (e: "moved-node", event: State): void
+    (e: "lock-node", event: [node: State, persist: boolean]): void
+    (e: "unlock-node", event: [node: State, persist: boolean]): void
 }>()
 </script>
 
@@ -62,6 +71,10 @@ export enum CollisionType {
     ArcSlider,
 }
 
+export enum LockButtonAction {
+    LOCK = 0,
+    UNLOCK = 1,
+}
 
 export interface ArcSlider {
     arc: string
@@ -85,6 +98,7 @@ export default defineComponent({
             base: [0, 0] as Vector2,
             data: {} as any,
         },
+        displaying_locked_nodes: false,
 
         hover: {
             pos: null as Vector2 | null,
@@ -117,6 +131,18 @@ export default defineComponent({
 
             return style
         },
+        showLockButton() {
+            return Object.keys(this.value.nodes).length > 0
+        },
+        lockButtonAction() {
+            if (Object.keys(this.value.nodes).some(v => !this.value.locked_nodes[v])) {
+                return LockButtonAction.LOCK
+            }
+            return LockButtonAction.UNLOCK
+        },
+        lockButtonText() {
+            return this.lockButtonAction == LockButtonAction.LOCK ? "Lock All Nodes" : "Unlock All Nodes"
+        },
     },
     mounted() {
         this.canvas = new Canvas(this.$refs.canvas as HTMLCanvasElement, {
@@ -124,6 +150,8 @@ export default defineComponent({
             fontSize: 16,
         })
         window.addEventListener("load", this.load.bind(this))
+        window.addEventListener("keydown", this.keyDown.bind(this))
+        window.addEventListener("keyup", this.keyUp.bind(this))
 
         this.$emit("mounted", {
             canvas: this.canvas,
@@ -159,6 +187,19 @@ export default defineComponent({
         },
         enable_autofocus() {
             this.autofocus = true
+        },
+
+        toggleLock() {
+            if (this.lockButtonAction == LockButtonAction.LOCK) {
+                for (let node of Object.keys(this.value.nodes)) {
+                    this.$emit("lock-node", [node, true])
+                }
+            }
+            else {
+                for (let node of Object.keys(this.value.nodes)) {
+                    this.$emit("unlock-node", [node, true])
+                }
+            }
         },
 
         request_frame() {
@@ -338,7 +379,10 @@ export default defineComponent({
             // nodes
             for (const [name, [x, y]] of Object.entries(this.value.nodes)) {
                 const node_style: NodeStyle | undefined = this.style.nodes[name]
-                const color = node_style?.color ?? "#ffffff"
+                let color = node_style?.color ?? "#ffffff"
+                if (this.displaying_locked_nodes && this.value.locked_nodes[name]) {
+                    color = "#90c0ff"
+                }   
 
                 const radius = this.units.node_radius
                 
@@ -421,7 +465,12 @@ export default defineComponent({
             this.touch_identifier = touch.identifier
         },
         mouseDown(event: MouseEvent) {
-            this.clickDown([event.clientX, event.clientY])
+            if (event.button === 0 && event.ctrlKey) {
+                this.toggleLockClick([event.clientX, event.clientY])
+            }
+            else if (event.button === 0 && !event.ctrlKey) {
+                this.clickDown([event.clientX, event.clientY])
+            }
         },
         clickDown(client_pos: Vector2) {
             let pos = this.canvas.client_to_render_pos(client_pos)
@@ -441,6 +490,8 @@ export default defineComponent({
                 this.drag.value = node
                 this.drag.base = this.value.nodes[node]
                 this.drag.start = pos
+                this.$emit("lock-node", [node, false])
+
                 return
             }
             if (result.type === CollisionType.ArcSlider) {
@@ -453,7 +504,21 @@ export default defineComponent({
                 this.drag.value = slider
             }
         },
+        toggleLockClick(client_pos: Vector2) {
+            let pos = this.canvas.client_to_render_pos(client_pos)
+            const result = this.check_mouse_collision(this.canvas.from_render_pos(pos))
 
+            if (result?.type === CollisionType.Node) {
+                const node = result.value
+
+                if (this.value.locked_nodes[node]) {
+                    this.$emit("unlock-node", [node, true])
+                }
+                else {
+                    this.$emit("lock-node", [node, true])
+                }
+            }
+        },
 
         touchEnd(event: TouchEvent) {
             for (const touch of Object.values(event.changedTouches)) {
@@ -467,11 +532,16 @@ export default defineComponent({
         clickUp() {
             if (this.drag.type) {
                 this.$emit("updated-graph")
+
+                const node = this.drag.value
+                if (this.drag.type === DragType.Node && !this.value.locked_nodes[node]) {
+                    this.$emit("unlock-node", [node, false])
+                }
+
                 this.drag.type = DragType.None
                 this.drag.data = {}
             }
         },
-
 
         touchMove(event: TouchEvent) {
             for (const touch of Object.values(event.touches)) {
@@ -570,6 +640,17 @@ export default defineComponent({
             }
         },
 
+        keyDown(event: KeyboardEvent) {
+            if (event.key === "Control") {
+                this.displaying_locked_nodes = true
+            }
+        },
+        keyUp(event: KeyboardEvent) {
+            if (event.key === "Control") {
+                this.displaying_locked_nodes = false
+            }
+        },
+
         check_mouse_collision(pos: Vector2):
             {type: CollisionType.Node, value: string} |
             {type: CollisionType.ArcSlider, value: ArcSlider} |
@@ -616,5 +697,13 @@ export default defineComponent({
     right: 0.5rem;
     top: 0.5rem;
     z-index: 1;
+}
+
+.lock-button {
+    position: absolute;
+    right: 0.5rem;
+    bottom: 0.5rem;
+    z-index: 1;
+    color: var(--white);
 }
 </style>

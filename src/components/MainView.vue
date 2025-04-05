@@ -26,7 +26,9 @@
                         :value="graph"
                         :style="graph_style ?? {nodes:{},arcs:{}}"
                         @mounted="visualizer = $event"
-                        @node-moved="node_moved($event)"
+                        @moved-node="moved_node($event)"
+                        @lock-node="lock_node($event[0], $event[1])"
+                        @unlock-node="unlock_node($event[0], $event[1])"
                         @updated-graph="
                             selected ? save_graph(selectedName, graph) : null
                         "
@@ -207,7 +209,6 @@ export default defineComponent({
             this.layout_worker.postMessage({
                 type: "request_graph", graph: g
             } as LayoutMessage)
-            console.log("requesting graph layout")
 
             this.save_graph(name, this.graph)
         },
@@ -217,7 +218,7 @@ export default defineComponent({
 
             let center: Vector2 = vec.quot(rect, 2)
             const neighbours = get_node_neighbours(node, edges)
-            console.log("neighbours", neighbours)
+
             if (neighbours.size) {
                 const positions = Object.entries(nodes)
                     .filter(([v, _]) => neighbours.has(v))
@@ -225,17 +226,37 @@ export default defineComponent({
                 center = vec.center(...positions)
 
                 const [min, max] = vec.bbox(...positions)
-                console.log(min, max)
                 rect = [0, 0]
             }
 
             return random_position(vec.diff(center, vec.quot(rect, 2)), rect)
         },
 
-        node_moved(node: State) {
+        moved_node(node: State) {
             let updated_pos: {[name: State]: Vector2} = {}
-            updated_pos[node] = this.graph.nodes[node]
+            updated_pos[node] = [...this.graph.nodes[node]] as Vector2
+            // console.log("updated node", updated_pos)
             this.layout_worker.postMessage({ type: "update_graph", updated_pos})
+        },
+        lock_node(node: State, persist: boolean) {
+            let updated_locked_nodes: {[name: State]: boolean} = {}
+            updated_locked_nodes[node] = true
+            this.layout_worker.postMessage({ type: "update_graph", updated_locked_nodes})
+
+            if (persist) {
+                this.graph.locked_nodes[node] = true
+                this.save_graph(this.selectedName, this.graph)
+            }
+        },
+        unlock_node(node: State, persist: boolean) {
+            let updated_locked_nodes: {[name: State]: boolean} = {}
+            updated_locked_nodes[node] = false
+            this.layout_worker.postMessage({ type: "update_graph", updated_locked_nodes})
+
+            if (persist) {
+                delete this.graph.locked_nodes[node]
+                this.save_graph(this.selectedName, this.graph)
+            }
         },
         
         layout_response(event: MessageEvent<any>) {
