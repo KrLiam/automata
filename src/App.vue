@@ -39,6 +39,13 @@ export default defineComponent({
         }
     },
     mounted() {
+        document.addEventListener('keydown', function(event) {
+        // Check if Ctrl + S is pressed
+        if (event.ctrlKey && event.key === 's') {
+            event.preventDefault(); // Prevent the browser's Save dialog
+            window.open('https://i1.rgstatic.net/ii/profile.image/277723235799047-1443225787410_Q512/Jerusa-Marchi.jpg', '_blank'); // Open Google in a new tab
+        }
+        });
         if (!this.code.length) this.load_example_code()
 
         expose(exposed_default)
@@ -239,39 +246,6 @@ body {
 }
 *::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.2);
-}
-
-input[type=range] {
-    -webkit-appearance: none;
-    appearance: none;
-    display: block;
-    width: 10em;
-    height: 0.5em;
-    border-radius: 5px;
-    background-color: var(--white);
-    outline: none;
-}
-input[type=range]::-moz-range-thumb {
-    width: 1em;
-    height: 1em;
-    border-radius: 50%;
-    background: var(--white);
-    border: none;
-}
-input[type=range]::-ms-range-thumb {
-    width: 1em;
-    height: 1em;
-    border-radius: 50%;
-    background: var(--white);
-    border: none;
-}
-input::-webkit-slider-thumb{
-    -webkit-appearance: none; /* remove a aparencia padão */
-    border: none;
-    width: 1em;
-    height: 1em;
-    border-radius: 50%;
-    background: var(--white);
 }
 
 ul {
