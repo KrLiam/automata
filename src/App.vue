@@ -241,6 +241,39 @@ body {
     background: rgba(255, 255, 255, 0.2);
 }
 
+input[type=range] {
+    -webkit-appearance: none;
+    appearance: none;
+    display: block;
+    width: 10em;
+    height: 0.5em;
+    border-radius: 5px;
+    background-color: var(--white);
+    outline: none;
+}
+input[type=range]::-moz-range-thumb {
+    width: 1em;
+    height: 1em;
+    border-radius: 50%;
+    background: var(--white);
+    border: none;
+}
+input[type=range]::-ms-range-thumb {
+    width: 1em;
+    height: 1em;
+    border-radius: 50%;
+    background: var(--white);
+    border: none;
+}
+input::-webkit-slider-thumb{
+    -webkit-appearance: none; /* remove a aparencia padão */
+    border: none;
+    width: 1em;
+    height: 1em;
+    border-radius: 50%;
+    background: var(--white);
+}
+
 ul {
     list-style-type: none;
     padding: 0;

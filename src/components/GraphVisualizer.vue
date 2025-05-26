@@ -19,13 +19,28 @@
             title="Auto-focus"
             v-model="autofocus"
         >
-        <button
-            class="lock-button"
-            v-if="showLockButton"
-            @click="toggleLock"
+        <div
+            class="layout-settings"
+            v-if="showLayoutSettings"
         >
-            {{ lockButtonText }}
-        </button>
+            <input
+                class="edge-length-range"
+                type="range"
+                v-model="edge_length"
+                title="Edge Length"
+                min="20"
+                max="300"
+            >
+            <span class="edge-length-label">
+                {{ edge_length }}
+            </span>
+            <button
+                class="lock-button"
+                @click="toggleLock"
+            >
+                {{ lockButtonText }}
+            </button>
+        </div>
     </div>
 </template>
 
@@ -43,6 +58,7 @@ defineEmits<{
     (e: "moved-node", event: State): void
     (e: "lock-node", event: [node: State, persist: boolean]): void
     (e: "unlock-node", event: [node: State, persist: boolean]): void
+    (e: "update-edge-length", event: number): void
 }>()
 </script>
 
@@ -106,6 +122,7 @@ export default defineComponent({
         },
 
         autofocus: true as boolean,
+        edge_length: 150.0,
 
         units: {
             node_radius: 20,
@@ -131,7 +148,7 @@ export default defineComponent({
 
             return style
         },
-        showLockButton() {
+        showLayoutSettings() {
             return Object.keys(this.value.nodes).length > 0
         },
         lockButtonAction() {
@@ -157,6 +174,11 @@ export default defineComponent({
             canvas: this.canvas,
             autofocus: this.enable_autofocus.bind(this)
         } as Visualizer)
+    },
+    watch: {
+        edge_length() {
+            this.$emit("update-edge-length", this.edge_length)
+        }
     },
     updated() {
         this.load()
@@ -699,11 +721,25 @@ export default defineComponent({
     z-index: 1;
 }
 
-.lock-button {
+.layout-settings {
     position: absolute;
     right: 0.5rem;
     bottom: 0.5rem;
     z-index: 1;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.5rem;
+}
+.lock-button {
     color: var(--white);
 }
+.edge-length-range {
+    color: var(--green);
+}
+.edge-length-label {
+    margin-left: 0.5rem;
+    color: white;
+}
+
 </style>

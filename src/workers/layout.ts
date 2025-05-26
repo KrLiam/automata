@@ -6,6 +6,7 @@ export type LayoutMessage =
     { type: "request_graph", name: string, graph: GraphData } |
     { type: "stop" } |
     { type: "update_graph", updated_pos?: {[name: State]: Vector2}, updated_locked_nodes?: {[name: State]: boolean} } |
+    { type: "update_edge_length", value: number } |
     { type: "response", name: string, pos: {[name: State]: Vector2}, iteration: number }
 
 
@@ -21,7 +22,7 @@ const builder = {
     iter: 0,
     iters_per_update: 10,
     max_iterations: 10000,
-    ideal_edge_len: 5.0,
+    edge_len: 150.0,
     cooling_factor: 0.998,
     temperature: 1.0,
     threshold: 0.0025,
@@ -92,7 +93,7 @@ const builder = {
     },
 
     apply() {
-        const k = 100
+        const k = this.edge_len
         const t = this.temperature
 
         let forces: { [name: State]: Vector2 } = {}
@@ -131,13 +132,6 @@ const builder = {
             this.graph.nodes[v] = vec.sum(pos, vec.prod(forces[v], factor))
         }
 
-        // const barycenter = this.get_barycenter()
-        // const delta = vec.diff(this.center, barycenter)
-        // for (let v of Object.keys(this.graph.nodes)) {
-        //     if (this.graph.locked_nodes[v]) continue
-        //     this.graph.nodes[v] = vec.sum(this.graph.nodes[v], delta)
-        // }
-
         this.iter++
     }
 }
@@ -150,6 +144,10 @@ onmessage = function (event) {
     }
     else if (data.type === "stop") {
         builder.stop()
+    }
+    else if (data.type === "update_edge_length") {
+        builder.iter = 0
+        builder.edge_len = data.value
     }
     else if (data.type === "update_graph") {
         builder.iter = 0

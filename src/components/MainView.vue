@@ -32,6 +32,7 @@
                         @updated-graph="
                             selected ? save_graph(selectedName, graph) : null
                         "
+                        @update-edge-length="update_edge_length"
                     ></GraphVisualizer>
                 </template>
             </SplitView>
@@ -257,6 +258,9 @@ export default defineComponent({
                 delete this.graph.locked_nodes[node]
                 this.save_graph(this.selectedName, this.graph)
             }
+        },
+        update_edge_length(value: number) {
+            this.layout_worker.postMessage({ type: "update_edge_length", value })
         },
         
         layout_response(event: MessageEvent<any>) {
